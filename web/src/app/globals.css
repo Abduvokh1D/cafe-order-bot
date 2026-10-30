@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Telegram ichida --tg-theme-* ranglarini telegram-web-app.js o'zi o'rnatadi;
+   oddiy brauzerda zaxira ranglar ishlaydi */
+:root {
+  --background: var(--tg-theme-bg-color, #ffffff);
+  --foreground: var(--tg-theme-text-color, #171717);
+  --hint: var(--tg-theme-hint-color, #71717a);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-hint: var(--hint);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--tg-theme-bg-color, #0a0a0a);
+    --foreground: var(--tg-theme-text-color, #ededed);
+    --hint: var(--tg-theme-hint-color, #a1a1aa);
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}

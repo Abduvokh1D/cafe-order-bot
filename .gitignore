@@ -1,0 +1,30 @@
+# Bog'liqliklar
+node_modules/
+
+# Maxfiy sozlamalar (bot tokeni, baza paroli) — hech qachon commit qilinmaydi
+.env
+.env.*
+!.env.example
+
+# Build natijalari
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Loglar
+*.log
+npm-debug.log*
+
+# Tizim va muharrir fayllari
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Lokal ma'lumotlar (Docker volume, yuklangan rasmlar)
+/data/
+/uploads/
