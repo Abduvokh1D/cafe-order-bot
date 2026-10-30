@@ -51,8 +51,8 @@ Bitta tizim ko'p kafega xizmat qiladi (multi-tenant): har bir kafening o'z boti,
 - [x] Kafe xodimlari Telegram guruhiga xabar: "Qabul qilish" / "Bekor qilish" tugmalari
 
 ### 6-hafta — Buyurtma holati
-- [ ] Mijozga bot orqali holat: Qabul qilindi → Tayyorlanmoqda → Yo'lda → Yetkazildi
-- [ ] **Bosqich natijasi: sinov kafega ko'rsatishga tayyor MVP**
+- [x] Mijozga bot orqali holat: Qabul qilindi → Tayyorlanmoqda → Yo'lda → Yetkazildi (olib ketishda: Tayyor → Topshirildi)
+- [x] **Bosqich natijasi: sinov kafega ko'rsatishga tayyor MVP**
 
 ### 7–8-hafta — Admin panel
 - [ ] Kafe egasi uchun kirish (login)
@@ -85,3 +85,4 @@ _Har bir ish sessiyasidan keyin bu yerga 1–2 qator yoziladi: nima qilindi, key
 - 2026-10-30: 2-hafta yakunlandi: PostgreSQL 17 (Docker), npm workspaces, umumiy `db/` paketi, 6 ta jadval va sinov menyusi (7 ta taom). Bog'lanishlar (cafe_id, id) orqali tekshiriladi. Keyingi qadam: 3-hafta, Mini App'da kategoriyalar va taomlar ro'yxati.
 - 2026-10-30: 3–4-hafta yakunlandi va Telegram'da sinaldi: har bir kafe menyusi o'z manzilida (`/sinov-kafe`), savat telefon xotirasida (faqat id va son, narx bazadan), Telegram ranglari va xato sahifalari. Bot `CAFE_SLUG` orqali kafega ulanadi. Keyingi qadam: 5-hafta, buyurtma berish.
 - 2026-10-30: 5-hafta yakunlandi va Telegram'da sinaldi: buyurtma formasi, initData imzosi, narxni serverda hisoblash, xodimlar guruhiga xabar va tugmalar. Bot tokeni `cafes.bot_token` da ochiq saqlanadi: serverga chiqishda shifrlashni ko'rib chiqish kerak. Keyingi qadam: 6-hafta, mijozga buyurtma holati xabarlari.
+- 2026-10-30: MVP tayyor va Telegram'da sinaldi: buyurtma to'liq yo'lni bosib o'tadi, mijoz har qadamda bot orqali xabar oladi, bekor qilish tasdiq so'raydi. Olib ketish uchun "Tayyor" holati qo'shildi. Keyingi qadam: 7–8-hafta, admin panel; hozircha MVP faqat kompyuter va tunnel orqali ishlaydi, kafega ko'rsatishdan oldin serverga chiqish kerak.

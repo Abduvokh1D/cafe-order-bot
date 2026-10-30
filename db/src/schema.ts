@@ -33,6 +33,8 @@ export const orderStatus = pgEnum("order_status", [
   "new",
   "accepted",
   "preparing",
+  // Olib ketish uchun: mijoz kelib olishi mumkin (yetkazib berishda "on_the_way" ishlatiladi)
+  "ready",
   "on_the_way",
   "delivered",
   "cancelled",

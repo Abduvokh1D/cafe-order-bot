@@ -46,7 +46,7 @@ export async function sendStaffMessage(botToken: string, chatId: number, orderId
         inline_keyboard: [
           [
             { text: "✅ Qabul qilish", callback_data: `order:accepted:${orderId}` },
-            { text: "❌ Bekor qilish", callback_data: `order:cancelled:${orderId}` },
+            { text: "❌ Bekor qilish", callback_data: `order:cancel:${orderId}` },
           ],
         ],
       },

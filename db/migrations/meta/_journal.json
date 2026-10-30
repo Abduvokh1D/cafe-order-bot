@@ -15,6 +15,13 @@
       "when": 1793362731464,
       "tag": "0001_order_placement",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793370397377,
+      "tag": "0002_order_ready_status",
+      "breakpoints": true
     }
   ]
 }

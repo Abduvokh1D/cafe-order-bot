@@ -1,5 +1,6 @@
-import { decideOrder, registerCafeBot, type StaffDecision } from "@cafe/db";
+import { registerCafeBot } from "@cafe/db";
 import { Bot, InlineKeyboard } from "grammy";
+import { registerStaffHandlers } from "./staff-orders.ts";
 
 // bot/.env — token va Mini App manzili, ildizdagi .env — DATABASE_URL
 for (const file of [".env", "../.env"]) {
@@ -44,34 +45,7 @@ bot.command("chatid", async (ctx) => {
   await ctx.reply(`Bu chat raqami: ${ctx.chat.id}`);
 });
 
-const DECISION_LABELS: Record<StaffDecision, string> = {
-  accepted: "✅ Qabul qilindi",
-  cancelled: "❌ Bekor qilindi",
-};
-
-bot.callbackQuery(/^order:(accepted|cancelled):(\d+)$/, async (ctx) => {
-  const status = ctx.match[1] as StaffDecision;
-  const orderId = Number(ctx.match[2]);
-  const chatId = ctx.chat?.id;
-
-  const result = chatId
-    ? await decideOrder({ slug: cafeSlug, chatId, orderId, status })
-    : "forbidden";
-
-  if (result === "forbidden") {
-    await ctx.answerCallbackQuery({ text: "Bu guruhdan boshqarib bo'lmaydi.", show_alert: true });
-    return;
-  }
-  if (result === "already_decided") {
-    await ctx.answerCallbackQuery({ text: "Bu buyurtma bo'yicha allaqachon qaror qilingan." });
-    await ctx.editMessageReplyMarkup();
-    return;
-  }
-
-  await ctx.answerCallbackQuery({ text: DECISION_LABELS[status] });
-  const original = ctx.callbackQuery.message?.text ?? `Buyurtma №${orderId}`;
-  await ctx.editMessageText(`${original}\n\n${DECISION_LABELS[status]} — ${ctx.from.first_name}`);
-});
+registerStaffHandlers(bot, cafeSlug);
 
 bot.catch((err) => {
   console.error("Bot xatosi:", err.error);

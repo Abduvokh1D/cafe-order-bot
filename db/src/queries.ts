@@ -1,6 +1,14 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "./index.ts";
-import { cafes, categories, customers, orderItems, orders, products } from "./schema.ts";
+import {
+  cafes,
+  categories,
+  customers,
+  orderItems,
+  orders,
+  orderStatus,
+  products,
+} from "./schema.ts";
 
 export type MenuProduct = {
   id: number;
@@ -243,31 +251,96 @@ export async function placeOrder(
   }
 }
 
-export type StaffDecision = "accepted" | "cancelled";
+export type OrderStatus = (typeof orderStatus.enumValues)[number];
 
-/**
- * Xodim tugmasini qo'llaydi. Faqat shu kafening xodimlar guruhidan va faqat yangi
- * buyurtmaga ishlaydi, shuning uchun ikki xodim bir vaqtda bosganda birinchisi hisoblanadi.
- */
-export async function decideOrder(input: {
+const ORDER_FLOW: Record<OrderType, OrderStatus[]> = {
+  delivery: ["new", "accepted", "preparing", "on_the_way", "delivered"],
+  pickup: ["new", "accepted", "preparing", "ready", "delivered"],
+};
+
+/** Buyurtmaning keyingi holati; oxirgi holatda yoki bekor qilinganda null. */
+export function nextOrderStatus(type: OrderType, status: OrderStatus): OrderStatus | null {
+  const flow = ORDER_FLOW[type];
+  const index = flow.indexOf(status);
+  return index >= 0 ? (flow[index + 1] ?? null) : null;
+}
+
+export function canCancelOrder(status: OrderStatus) {
+  return status !== "delivered" && status !== "cancelled";
+}
+
+export type StaffOrder = {
+  id: number;
+  type: OrderType;
+  status: OrderStatus;
+  customerTelegramId: number;
+};
+
+/** Buyurtmani faqat shu kafening xodimlar guruhi ko'ra oladi; boshqa holatda null. */
+export async function getStaffOrder(input: {
   slug: string;
   chatId: number;
   orderId: number;
-  status: StaffDecision;
-}): Promise<"ok" | "forbidden" | "already_decided"> {
-  const db = getDb();
-  const [cafe] = await db
-    .select({ id: cafes.id, staffChatId: cafes.staffChatId })
-    .from(cafes)
-    .where(eq(cafes.slug, input.slug));
-  if (!cafe || cafe.staffChatId !== input.chatId) return "forbidden";
+}): Promise<StaffOrder | null> {
+  const [order] = await getDb()
+    .select({
+      id: orders.id,
+      type: orders.type,
+      status: orders.status,
+      customerTelegramId: customers.telegramId,
+    })
+    .from(orders)
+    .innerJoin(cafes, eq(cafes.id, orders.cafeId))
+    .innerJoin(
+      customers,
+      and(eq(customers.cafeId, orders.cafeId), eq(customers.id, orders.customerId)),
+    )
+    .where(
+      and(
+        eq(cafes.slug, input.slug),
+        eq(cafes.staffChatId, input.chatId),
+        eq(orders.id, input.orderId),
+      ),
+    );
+  return order ?? null;
+}
 
-  const rows = await db
+export type AdvanceOrderResult =
+  | { result: "ok"; order: StaffOrder; previousStatus: OrderStatus }
+  | { result: "forbidden" }
+  | { result: "stale"; order: StaffOrder };
+
+/**
+ * Buyurtmani keyingi holatga o'tkazadi yoki bekor qiladi. Holat faqat tartib bilan o'zgaradi;
+ * ikki xodim bir vaqtda bossa, birinchisi hisoblanadi, ikkinchisi "stale" oladi.
+ */
+export async function advanceOrder(input: {
+  slug: string;
+  chatId: number;
+  orderId: number;
+  status: OrderStatus;
+}): Promise<AdvanceOrderResult> {
+  const order = await getStaffOrder(input);
+  if (!order) return { result: "forbidden" };
+
+  const isAllowed =
+    input.status === "cancelled"
+      ? canCancelOrder(order.status)
+      : nextOrderStatus(order.type, order.status) === input.status;
+  if (!isAllowed) return { result: "stale", order };
+
+  const rows = await getDb()
     .update(orders)
     .set({ status: input.status })
-    .where(
-      and(eq(orders.cafeId, cafe.id), eq(orders.id, input.orderId), eq(orders.status, "new")),
-    )
+    .where(and(eq(orders.id, order.id), eq(orders.status, order.status)))
     .returning({ id: orders.id });
-  return rows.length > 0 ? "ok" : "already_decided";
+  if (rows.length === 0) {
+    return { result: "stale", order: (await getStaffOrder(input)) ?? order };
+  }
+
+  return {
+    result: "ok",
+    order: { ...order, status: input.status },
+    previousStatus: order.status,
+  };
 }
