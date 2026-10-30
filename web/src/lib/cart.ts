@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from "react";
+import { MAX_QUANTITY } from "@/lib/cart-limits";
+
+export { MAX_QUANTITY };
 
 // Savatda faqat taom id va soni saqlanadi. Nom va narx har doim bazadan kelgan
 // menyudan olinadi, shuning uchun narx o'zgarsa savatda eskisi qolib ketmaydi.
 export type Cart = Record<number, number>;
-
-export const MAX_QUANTITY = 99;
 
 const EMPTY: Cart = {};
 const carts = new Map<string, Cart>();
@@ -48,6 +49,16 @@ export function useCart(slug: string): Cart {
   return useSyncExternalStore(subscribe, () => read(slug), () => EMPTY);
 }
 
+function write(slug: string, cart: Cart) {
+  carts.set(slug, cart);
+  try {
+    window.localStorage.setItem(storageKey(slug), JSON.stringify(cart));
+  } catch {
+    // Saqlab bo'lmadi: savat shu sessiya davomida xotirada ishlaydi
+  }
+  listeners.forEach((listener) => listener());
+}
+
 /** Taom sonini o'rnatadi; 0 yoki undan kam bo'lsa, taom savatdan o'chiriladi. */
 export function setQuantity(slug: string, productId: number, quantity: number) {
   const cart = { ...read(slug) };
@@ -56,11 +67,9 @@ export function setQuantity(slug: string, productId: number, quantity: number) {
   } else {
     delete cart[productId];
   }
-  carts.set(slug, cart);
-  try {
-    window.localStorage.setItem(storageKey(slug), JSON.stringify(cart));
-  } catch {
-    // Saqlab bo'lmadi: savat shu sessiya davomida xotirada ishlaydi
-  }
-  listeners.forEach((listener) => listener());
+  write(slug, cart);
+}
+
+export function clearCart(slug: string) {
+  write(slug, {});
 }

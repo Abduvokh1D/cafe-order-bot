@@ -47,6 +47,19 @@ npm workspaces: paketlar ildiz papkadan bitta `npm install` bilan o'rnatiladi.
    npm run dev:bot
    ```
 
+## Xodimlar guruhini ulash
+
+Buyurtmalar kafe xodimlarining Telegram guruhiga keladi va u yerda qabul yoki bekor qilinadi.
+
+1. Guruh oching va botni unga qo'shing.
+2. Guruhda `/chatid@BOT_USERNAME` deb yozing, bot guruh raqamini aytadi.
+3. Raqamni bazaga yozing (`-100123` o'rniga guruh raqami, `sinov-kafe` o'rniga kafe):
+   ```bash
+   docker exec cafe-postgres psql -U cafe -d cafe -c "update cafes set staff_chat_id=-100123 where slug='sinov-kafe'"
+   ```
+
+Guruh supergroup'ga aylansa, raqami o'zgaradi: buyurtma xato bersa, shu qadamlarni takrorlang.
+
 ## Baza sxemasini o'zgartirish
 
 `db/src/schema.ts` ni tahrirlang, keyin migratsiya yarating va qo'llang:

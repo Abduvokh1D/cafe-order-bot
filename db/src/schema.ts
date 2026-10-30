@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   unique,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 // Narxlar so'mda, butun son sifatida saqlanadi (o'nli kasr xatolari bo'lmasligi uchun).
@@ -43,6 +44,10 @@ export const cafes = pgTable("cafes", {
   id: id(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  // Bot ishga tushganda o'zi yozadi. Maxfiy: mijozga yuboriladigan so'rovlarda tanlanmaydi
+  botToken: text("bot_token"),
+  // Buyurtmalar keladigan xodimlar guruhi (Telegram chat id)
+  staffChatId: bigint("staff_chat_id", { mode: "number" }),
   createdAt: createdAt(),
 });
 
@@ -110,6 +115,10 @@ export const orders = pgTable(
     id: id(),
     cafeId: cafeId(),
     customerId: integer("customer_id").notNull(),
+    // Mini App har bir urinish uchun yaratadi: internet uzilib qayta yuborilsa, buyurtma ikkilanmaydi
+    requestId: uuid("request_id").notNull(),
+    // Xodimlar guruhidagi xabar raqami
+    staffMessageId: integer("staff_message_id"),
     status: orderStatus("status").notNull().default("new"),
     type: orderType("type").notNull(),
     phone: text("phone").notNull(),
@@ -125,6 +134,7 @@ export const orders = pgTable(
   },
   (t) => [
     unique("orders_cafe_id_id_unique").on(t.cafeId, t.id),
+    unique("orders_cafe_request_unique").on(t.cafeId, t.requestId),
     foreignKey({
       name: "orders_customer_fk",
       columns: [t.cafeId, t.customerId],

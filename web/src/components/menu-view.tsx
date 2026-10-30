@@ -2,7 +2,8 @@
 
 import type { CafeMenu, MenuProduct } from "@cafe/db";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { CheckoutForm } from "@/components/checkout-form";
 import { MAX_QUANTITY, setQuantity, useCart } from "@/lib/cart";
 import { formatPrice } from "@/lib/format";
 
@@ -12,10 +13,13 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Tugagan yoki menyudan olib tashlangan taomlar savat summasiga kirmaydi
-  const lines = menu.categories
-    .flatMap((category) => category.products)
+  const products = menu.categories.flatMap((category) => category.products);
+  const lines = products
     .filter((product) => product.isAvailable && cart[product.id] > 0)
     .map((product) => ({ product, quantity: cart[product.id] }));
+  const soldOutNames = products
+    .filter((product) => !product.isAvailable && cart[product.id] > 0)
+    .map((product) => product.name);
   const count = lines.reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce((sum, line) => sum + line.quantity * line.product.price, 0);
 
@@ -75,8 +79,10 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
 
       {isCartOpen && (
         <CartSheet
+          slug={slug}
           lines={lines}
           total={total}
+          soldOutNames={soldOutNames}
           onClose={() => setIsCartOpen(false)}
           onChange={(productId, quantity) => setQuantity(slug, productId, quantity)}
         />
@@ -174,26 +180,67 @@ function QuantityStepper({
 }
 
 function CartSheet({
+  slug,
   lines,
   total,
+  soldOutNames,
   onClose,
   onChange,
 }: {
+  slug: string;
   lines: { product: MenuProduct; quantity: number }[];
   total: number;
+  soldOutNames: string[];
   onClose: () => void;
   onChange: (productId: number, quantity: number) => void;
 }) {
-  // Telegram'ning "Orqaga" tugmasi savatni yopadi
+  const [step, setStep] = useState<"cart" | "checkout">("cart");
+  const [placedOrderId, setPlacedOrderId] = useState<number | null>(null);
+  const isCheckout = step === "checkout" && placedOrderId === null;
+  const handleBack = useCallback(() => {
+    if (isCheckout) {
+      setStep("cart");
+    } else {
+      onClose();
+    }
+  }, [isCheckout, onClose]);
+
+  // Telegram'ning "Orqaga" tugmasi formadan savatga, savatdan menyuga qaytaradi
   useEffect(() => {
     const backButton = window.Telegram?.WebApp.BackButton;
     backButton?.show();
-    backButton?.onClick(onClose);
+    backButton?.onClick(handleBack);
     return () => {
-      backButton?.offClick(onClose);
+      backButton?.offClick(handleBack);
       backButton?.hide();
     };
-  }, [onClose]);
+  }, [handleBack]);
+
+  if (placedOrderId !== null) {
+    return (
+      <div className="fixed inset-0 z-30 flex flex-col justify-end bg-black/50">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Buyurtma yuborildi"
+          className="flex flex-col items-center gap-3 rounded-t-3xl bg-section p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center"
+        >
+          <div aria-hidden className="text-4xl">
+            ✅
+          </div>
+          <h2 className="text-lg font-semibold">Buyurtma №{placedOrderId} yuborildi</h2>
+          <p className="text-sm text-hint">Kafe tasdiqlashini kuting.</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-2 w-full rounded-2xl bg-button py-4 font-semibold text-button-text"
+          >
+            Yopish
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-30 flex flex-col justify-end bg-black/50" onClick={onClose}>
@@ -205,13 +252,22 @@ function CartSheet({
         className="flex max-h-[85%] flex-col rounded-t-3xl bg-section"
       >
         <div className="flex items-center justify-between px-4 pb-2 pt-4">
-          <h2 className="text-lg font-semibold">Savat</h2>
-          <button type="button" onClick={onClose} className="px-2 py-1 text-sm text-hint">
-            Yopish
+          <h2 className="text-lg font-semibold">{isCheckout ? "Buyurtma berish" : "Savat"}</h2>
+          <button type="button" onClick={handleBack} className="px-2 py-1 text-sm text-hint">
+            {isCheckout ? "Orqaga" : "Yopish"}
           </button>
         </div>
 
-        {lines.length === 0 ? (
+        {isCheckout ? (
+          <CheckoutForm slug={slug} lines={lines} total={total} onPlaced={setPlacedOrderId} />
+        ) : (
+          <>
+            {soldOutNames.length > 0 && (
+              <p role="status" className="px-4 pb-2 text-sm text-destructive">
+                Tugagan, buyurtmaga kirmaydi: {soldOutNames.join(", ")}
+              </p>
+            )}
+            {lines.length === 0 ? (
           <p className="px-4 py-10 text-center text-hint">Savat bo&apos;sh.</p>
         ) : (
           <ul className="flex-1 divide-y divide-secondary overflow-y-auto overscroll-contain px-4">
@@ -246,15 +302,17 @@ function CartSheet({
             <span>Jami</span>
             <span>{formatPrice(total)}</span>
           </div>
-          {/* Buyurtma berish 5-haftada ulanadi */}
           <button
             type="button"
-            disabled
-            className="rounded-2xl bg-button py-4 font-semibold text-button-text opacity-50"
+            disabled={lines.length === 0}
+            onClick={() => setStep("checkout")}
+            className="rounded-2xl bg-button py-4 font-semibold text-button-text disabled:opacity-50"
           >
-            Buyurtma berish (tez orada)
+            Buyurtma berish
           </button>
         </div>
+          </>
+        )}
       </div>
     </div>
   );
