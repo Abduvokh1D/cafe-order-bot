@@ -10,6 +10,10 @@ try {
 const nextConfig: NextConfig = {
   /* config options here */
   transpilePackages: ["@cafe/db"],
+  experimental: {
+    // Taom rasmi: 5 MB chegarasi lib/uploads.ts da, qolgani forma maydonlari uchun
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   cacheComponents: true,
   partialPrefetching: true,
   reactCompiler: true,

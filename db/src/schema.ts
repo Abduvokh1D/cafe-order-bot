@@ -53,6 +53,26 @@ export const cafes = pgTable("cafes", {
   createdAt: createdAt(),
 });
 
+export const admins = pgTable("admins", {
+  id: id(),
+  cafeId: cafeId(),
+  login: text("login").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const adminSessions = pgTable("admin_sessions", {
+  // Cookie'dagi tokenning o'zi emas, xeshi saqlanadi: baza oshkor bo'lsa ham kirib bo'lmaydi
+  tokenHash: text("token_hash").primaryKey(),
+  adminId: integer("admin_id")
+    .notNull()
+    .references(() => admins.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+});
+
 export const categories = pgTable(
   "categories",
   {
@@ -60,6 +80,8 @@ export const categories = pgTable(
     cafeId: cafeId(),
     name: text("name").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
+    // O'chirish o'rniga: eski buyurtmalar bog'langan yozuvlar saqlanib qoladi
+    isArchived: boolean("is_archived").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [unique("categories_cafe_id_id_unique").on(t.cafeId, t.id)],
@@ -77,6 +99,8 @@ export const products = pgTable(
     imageUrl: text("image_url"),
     // false bo'lsa — "tugadi", menyuda sotib bo'lmaydi
     isAvailable: boolean("is_available").notNull().default(true),
+    // O'chirish o'rniga: buyurtmalar tarixidagi taom yo'qolmaydi
+    isArchived: boolean("is_archived").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
   },

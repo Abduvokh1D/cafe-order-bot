@@ -47,6 +47,20 @@ npm workspaces: paketlar ildiz papkadan bitta `npm install` bilan o'rnatiladi.
    npm run dev:bot
    ```
 
+## Admin panel
+
+Kafe egasi uchun: `/admin` (buyurtmalar va kunlik hisobot) va `/admin/menu` (menyuni tahrirlash).
+
+Admin yaratish yoki parolni almashtirish (login va parol terminalda so'raladi):
+
+```bash
+npm run db:create-admin
+```
+
+Yuklangan rasmlar `data/uploads/` papkasida saqlanadi (`UPLOADS_DIR` bilan o'zgartirish mumkin) va git'ga tushmaydi. Serverda bu papkani ham zaxiralash kerak.
+
+`admin`, `api` va `uploads` nomlari band: kafe `slug`i bo'la olmaydi.
+
 ## Xodimlar guruhini ulash
 
 Buyurtmalar kafe xodimlarining Telegram guruhiga keladi va u yerda qabul yoki bekor qilinadi.

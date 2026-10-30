@@ -43,7 +43,7 @@ export async function getCafeMenu(slug: string): Promise<CafeMenu | null> {
   const categoryRows = await db
     .select({ id: categories.id, name: categories.name })
     .from(categories)
-    .where(eq(categories.cafeId, cafe.id))
+    .where(and(eq(categories.cafeId, cafe.id), eq(categories.isArchived, false)))
     .orderBy(asc(categories.sortOrder), asc(categories.id));
 
   const productRows = await db
@@ -57,7 +57,7 @@ export async function getCafeMenu(slug: string): Promise<CafeMenu | null> {
       isAvailable: products.isAvailable,
     })
     .from(products)
-    .where(eq(products.cafeId, cafe.id))
+    .where(and(eq(products.cafeId, cafe.id), eq(products.isArchived, false)))
     .orderBy(asc(products.sortOrder), asc(products.id));
 
   return {
@@ -168,6 +168,7 @@ export async function placeOrder(
     .where(
       and(
         eq(products.cafeId, cafeId),
+        eq(products.isArchived, false),
         inArray(products.id, items.map((item) => item.productId)),
       ),
     );

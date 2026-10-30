@@ -55,9 +55,9 @@ Bitta tizim ko'p kafega xizmat qiladi (multi-tenant): har bir kafening o'z boti,
 - [x] **Bosqich natijasi: sinov kafega ko'rsatishga tayyor MVP**
 
 ### 7–8-hafta — Admin panel
-- [ ] Kafe egasi uchun kirish (login)
-- [ ] Menyuni tahrirlash: taom qo'shish, narx, rasm yuklash, "tugadi" belgisi
-- [ ] Buyurtmalar ro'yxati va oddiy kunlik hisobot
+- [x] Kafe egasi uchun kirish (login)
+- [x] Menyuni tahrirlash: taom qo'shish, narx, rasm yuklash, "tugadi" belgisi
+- [x] Buyurtmalar ro'yxati va oddiy kunlik hisobot
 
 ### 9-hafta — Ishga tushirish
 - [ ] Domen va hosting
@@ -86,3 +86,4 @@ _Har bir ish sessiyasidan keyin bu yerga 1–2 qator yoziladi: nima qilindi, key
 - 2026-10-30: 3–4-hafta yakunlandi va Telegram'da sinaldi: har bir kafe menyusi o'z manzilida (`/sinov-kafe`), savat telefon xotirasida (faqat id va son, narx bazadan), Telegram ranglari va xato sahifalari. Bot `CAFE_SLUG` orqali kafega ulanadi. Keyingi qadam: 5-hafta, buyurtma berish.
 - 2026-10-30: 5-hafta yakunlandi va Telegram'da sinaldi: buyurtma formasi, initData imzosi, narxni serverda hisoblash, xodimlar guruhiga xabar va tugmalar. Bot tokeni `cafes.bot_token` da ochiq saqlanadi: serverga chiqishda shifrlashni ko'rib chiqish kerak. Keyingi qadam: 6-hafta, mijozga buyurtma holati xabarlari.
 - 2026-10-30: MVP tayyor va Telegram'da sinaldi: buyurtma to'liq yo'lni bosib o'tadi, mijoz har qadamda bot orqali xabar oladi, bekor qilish tasdiq so'raydi. Olib ketish uchun "Tayyor" holati qo'shildi. Keyingi qadam: 7–8-hafta, admin panel; hozircha MVP faqat kompyuter va tunnel orqali ishlaydi, kafega ko'rsatishdan oldin serverga chiqish kerak.
+- 2026-10-30: Admin panel tayyor va sinaldi: kirish (scrypt, bazadagi sessiyalar, 5 urinishdan keyin blok), menyuni tahrirlash, rasm yuklash (brauzerda kichraytiriladi, `data/uploads`), buyurtmalar va kunlik hisobot. Taom va kategoriya o'chirilmaydi, arxivlanadi. Keyingi qadam: 9-hafta, domen va hosting.

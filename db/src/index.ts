@@ -4,6 +4,8 @@ import * as schema from "./schema.ts";
 
 export { schema };
 export * from "./queries.ts";
+export * from "./auth.ts";
+export * from "./admin.ts";
 
 function createDb() {
   const url = process.env.DATABASE_URL;
