@@ -3,6 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema.ts";
 
 export { schema };
+export * from "./queries.ts";
 
 function createDb() {
   const url = process.env.DATABASE_URL;

@@ -41,7 +41,7 @@ npm workspaces: paketlar ildiz papkadan bitta `npm install` bilan o'rnatiladi.
    ```bash
    cloudflared tunnel --url http://localhost:3000
    ```
-3. `bot/.env.example` faylini `bot/.env` nomi bilan nusxalang, `BOT_TOKEN` va tunnel manzilini (`WEBAPP_URL`) yozing.
+3. `bot/.env.example` faylini `bot/.env` nomi bilan nusxalang, `BOT_TOKEN`, tunnel manzilini (`WEBAPP_URL`) va kafe nomini (`CAFE_SLUG`) yozing. Menyu `WEBAPP_URL/CAFE_SLUG` manzilida ochiladi.
 4. Bot:
    ```bash
    npm run dev:bot

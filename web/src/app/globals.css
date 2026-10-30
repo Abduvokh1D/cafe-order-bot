@@ -6,12 +6,22 @@
   --background: var(--tg-theme-bg-color, #ffffff);
   --foreground: var(--tg-theme-text-color, #171717);
   --hint: var(--tg-theme-hint-color, #71717a);
+  --secondary: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  --section: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+  --button: var(--tg-theme-button-color, #2481cc);
+  --button-text: var(--tg-theme-button-text-color, #ffffff);
+  --destructive: var(--tg-theme-destructive-text-color, #dc2626);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-hint: var(--hint);
+  --color-secondary: var(--secondary);
+  --color-section: var(--section);
+  --color-button: var(--button);
+  --color-button-text: var(--button-text);
+  --color-destructive: var(--destructive);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -21,6 +31,9 @@
     --background: var(--tg-theme-bg-color, #0a0a0a);
     --foreground: var(--tg-theme-text-color, #ededed);
     --hint: var(--tg-theme-hint-color, #a1a1aa);
+    --secondary: var(--tg-theme-secondary-bg-color, #18181b);
+    --section: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #27272a));
+    --destructive: var(--tg-theme-destructive-text-color, #f87171);
   }
 }
 

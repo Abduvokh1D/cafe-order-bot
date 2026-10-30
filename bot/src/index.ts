@@ -10,14 +10,21 @@ for (const file of [".env", "../.env"]) {
 }
 
 const token = process.env.BOT_TOKEN;
-const webAppUrl = process.env.WEBAPP_URL;
+const baseUrl = process.env.WEBAPP_URL;
+const cafeSlug = process.env.CAFE_SLUG;
 
 if (!token) {
   throw new Error("BOT_TOKEN topilmadi. bot/.env faylini .env.example asosida yarating.");
 }
-if (!webAppUrl?.startsWith("https://") || webAppUrl === "https://") {
+if (!baseUrl?.startsWith("https://") || baseUrl === "https://") {
   throw new Error("WEBAPP_URL https:// bilan boshlanadigan to'liq manzil bo'lishi kerak.");
 }
+if (!cafeSlug) {
+  throw new Error("CAFE_SLUG topilmadi. bot/.env faylini .env.example asosida to'ldiring.");
+}
+
+// Har bir kafe menyusi o'z manzilida: https://.../sinov-kafe
+const webAppUrl = `${baseUrl.replace(/\/+$/, "")}/${cafeSlug}`;
 
 const bot = new Bot(token);
 

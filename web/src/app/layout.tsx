@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import { TelegramInit } from "@/components/telegram-init";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <TelegramInit />
         {/* Telegram Mini App API (window.Telegram.WebApp) — har bir sahifaga kerak */}
         <Script
           src="https://telegram.org/js/telegram-web-app.js"

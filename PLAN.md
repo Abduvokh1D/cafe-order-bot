@@ -40,9 +40,9 @@ Bitta tizim ko'p kafega xizmat qiladi (multi-tenant): har bir kafening o'z boti,
 - [x] Sinov kafe uchun namunaviy menyu kiritildi
 
 ### 3–4-hafta — Mini App: menyu va savat
-- [ ] Kategoriyalar va taomlar ro'yxati (rasm, narx, tavsif)
-- [ ] Savatga qo'shish, sonini o'zgartirish, o'chirish
-- [ ] Telegram mavzusiga (yorug'/qorong'i) moslashuv
+- [x] Kategoriyalar va taomlar ro'yxati (rasm, narx, tavsif)
+- [x] Savatga qo'shish, sonini o'zgartirish, o'chirish
+- [x] Telegram mavzusiga (yorug'/qorong'i) moslashuv
 
 ### 5-hafta — Buyurtma berish
 - [ ] Yetkazib berish / olib ketish tanlovi
@@ -83,3 +83,4 @@ _Har bir ish sessiyasidan keyin bu yerga 1–2 qator yoziladi: nima qilindi, key
 - 2026-10-30: Git, `web/` (Next.js 16 Mini App sahifasi) va `bot/` (grammY, /start + "Menyu" tugmasi) tayyorlandi. Keyingi qadam: BotFather tokeni, tunnel (cloudflared) va botni Telegram'da sinash.
 - 2026-10-30: Bot va Mini App Telegram'da tunnel orqali sinaldi, ishlayapti. 1-hafta yakunlandi. Keyingi qadam: 2-hafta, PostgreSQL (Docker) va Drizzle ORM.
 - 2026-10-30: 2-hafta yakunlandi: PostgreSQL 17 (Docker), npm workspaces, umumiy `db/` paketi, 6 ta jadval va sinov menyusi (7 ta taom). Bog'lanishlar (cafe_id, id) orqali tekshiriladi. Keyingi qadam: 3-hafta, Mini App'da kategoriyalar va taomlar ro'yxati.
+- 2026-10-30: 3–4-hafta yakunlandi va Telegram'da sinaldi: har bir kafe menyusi o'z manzilida (`/sinov-kafe`), savat telefon xotirasida (faqat id va son, narx bazadan), Telegram ranglari va xato sahifalari. Bot `CAFE_SLUG` orqali kafega ulanadi. Keyingi qadam: 5-hafta, buyurtma berish.
