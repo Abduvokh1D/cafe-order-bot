@@ -1,9 +1,12 @@
 import { Bot, InlineKeyboard } from "grammy";
 
-try {
-  process.loadEnvFile();
-} catch {
-  // .env fayli yo'q — o'zgaruvchilar tizim muhitidan olinadi (masalan, serverda)
+// bot/.env — token va Mini App manzili, ildizdagi .env — DATABASE_URL
+for (const file of [".env", "../.env"]) {
+  try {
+    process.loadEnvFile(file);
+  } catch {
+    // Fayl yo'q — o'zgaruvchilar tizim muhitidan olinadi (masalan, serverda)
+  }
 }
 
 const token = process.env.BOT_TOKEN;
