@@ -27,10 +27,10 @@ Bitta tizim ko'p kafega xizmat qiladi (multi-tenant): har bir kafening o'z boti,
 
 ### 1-hafta — Tayyorgarlik
 - [x] Node.js (LTS), VS Code, Git o'rnatilgan
-- [ ] GitHub'da yangi repozitoriy
-- [ ] @BotFather orqali sinov bot yaratildi, token `.env` faylda (hech kimga yuborilmaydi)
+- [x] GitHub'da yangi repozitoriy
+- [x] @BotFather orqali sinov bot yaratildi, token `.env` faylda (hech kimga yuborilmaydi)
 - [x] Next.js loyiha yaratildi
-- [ ] Bot "/start" ga javob beradi va "Menyu" tugmasi Mini App'ni ochadi
+- [x] Bot "/start" ga javob beradi va "Menyu" tugmasi Mini App'ni ochadi
 
 ### 2-hafta — Ma'lumotlar bazasi
 - [ ] Docker o'rnatildi, PostgreSQL kompyuterda ishga tushirildi
@@ -81,3 +81,4 @@ _Har bir ish sessiyasidan keyin bu yerga 1–2 qator yoziladi: nima qilindi, key
 - 2026-10-30: Loyiha g'oyasi va reja tasdiqlandi. Keyingi qadam: 1-hafta tayyorgarligi.
 - 2026-10-30: Supabase o'rniga boshidan oddiy PostgreSQL + Drizzle ORM tanlandi.
 - 2026-10-30: Git, `web/` (Next.js 16 Mini App sahifasi) va `bot/` (grammY, /start + "Menyu" tugmasi) tayyorlandi. Keyingi qadam: BotFather tokeni, tunnel (cloudflared) va botni Telegram'da sinash.
+- 2026-10-30: Bot va Mini App Telegram'da tunnel orqali sinaldi, ishlayapti. 1-hafta yakunlandi. Keyingi qadam: 2-hafta, PostgreSQL (Docker) va Drizzle ORM.
