@@ -1,0 +1,11 @@
+# Maxfiy sozlamalar image ichiga tushmasligi shart
+**/.env
+**/.env.*
+
+**/node_modules
+**/.next
+.git
+.claude
+data
+backups
+*.md

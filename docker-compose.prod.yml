@@ -1,0 +1,115 @@
+# Serverdagi to'liq tizim. Sozlamalar shu papkadagi .env faylidan olinadi
+# (namuna: .env.production.example). Qo'llanma: DEPLOY.md.
+name: cafe-prod
+
+x-logging: &logging
+  # Loglar diskni to'ldirib yubormasligi uchun
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-tools: &tools
+  build:
+    context: .
+    target: tools
+  image: cafe-order-bot-tools
+  logging: *logging
+  environment: &tools-env
+    DATABASE_URL: postgres://cafe:${POSTGRES_PASSWORD:?.env faylida POSTGRES_PASSWORD yozilmagan}@postgres:5432/cafe
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: cafe
+      POSTGRES_DB: cafe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?.env faylida POSTGRES_PASSWORD yozilmagan}
+    # Port tashqariga ochilmaydi: bazaga faqat shu tizimdagi xizmatlar ulanadi
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cafe -d cafe"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Har ishga tushishda yangi migratsiyalarni qo'llaydi va tugaydi
+  migrate:
+    <<: *tools
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: web
+    image: cafe-order-bot-web
+    restart: unless-stopped
+    logging: *logging
+    init: true
+    environment:
+      DATABASE_URL: postgres://cafe:${POSTGRES_PASSWORD:?.env faylida POSTGRES_PASSWORD yozilmagan}@postgres:5432/cafe
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  bot:
+    <<: *tools
+    restart: unless-stopped
+    init: true
+    working_dir: /app/bot
+    command: ["../node_modules/.bin/tsx", "src/index.ts"]
+    environment:
+      <<: *tools-env
+      BOT_TOKEN: ${BOT_TOKEN:?.env faylida BOT_TOKEN yozilmagan}
+      WEBAPP_URL: https://${DOMAIN:?.env faylida DOMAIN yozilmagan}
+      CAFE_SLUG: ${CAFE_SLUG:?.env faylida CAFE_SLUG yozilmagan}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # HTTPS: sertifikatni Let's Encrypt'dan o'zi oladi va yangilaydi
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?.env faylida DOMAIN yozilmagan}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+  # Faqat qo'lda ishlatiladi: docker compose run --rm tools npm run db:create-admin
+  tools:
+    <<: *tools
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  uploads:
+  caddy-data:
+  caddy-config:

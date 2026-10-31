@@ -1,0 +1,5 @@
+# Linux serverda ishlaydigan fayllar Windows'da ham LF bilan qoladi
+*.sh text eol=lf
+Caddyfile text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf

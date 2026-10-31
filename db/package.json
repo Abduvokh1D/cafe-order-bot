@@ -13,7 +13,8 @@
     "seed": "tsx src/seed.ts",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
-    "create-admin": "tsx src/create-admin.ts"
+    "create-admin": "tsx src/create-admin.ts",
+    "create-cafe": "tsx src/create-cafe.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",

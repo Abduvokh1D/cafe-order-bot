@@ -1,0 +1,16 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+		-X-Powered-By
+	}
+
+	# Mini App Telegram Web ichida iframe'da ochiladi, shuning uchun taqiq faqat admin panelga
+	header /admin* X-Frame-Options "DENY"
+
+	reverse_proxy web:3000
+}

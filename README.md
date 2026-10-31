@@ -1,7 +1,7 @@
 # Cafe Order Bot
 
 Kafe va oshxonalar uchun Telegram bot + Mini App orqali buyurtma qabul qilish tizimi.
-Reja va jurnal: [PLAN.md](PLAN.md).
+Reja va jurnal: [PLAN.md](PLAN.md). Serverga chiqish: [DEPLOY.md](DEPLOY.md).
 
 ## Tuzilma
 
@@ -9,7 +9,7 @@ npm workspaces: paketlar ildiz papkadan bitta `npm install` bilan o'rnatiladi.
 
 | Papka | Nima |
 |---|---|
-| `web/` | Next.js: Mini App (mijoz menyusi) va keyinchalik admin panel |
+| `web/` | Next.js: Mini App (mijoz menyusi) va admin panel |
 | `bot/` | grammY bot: `/start`, "Menyu" tugmasi, buyurtma xabarlari |
 | `db/` | `@cafe/db`: Drizzle sxemasi, migratsiyalar, namunaviy ma'lumotlar |
 
@@ -51,13 +51,19 @@ npm workspaces: paketlar ildiz papkadan bitta `npm install` bilan o'rnatiladi.
 
 Kafe egasi uchun: `/admin` (buyurtmalar va kunlik hisobot) va `/admin/menu` (menyuni tahrirlash).
 
+Yangi kafe yaratish:
+
+```bash
+npm run db:create-cafe
+```
+
 Admin yaratish yoki parolni almashtirish (login va parol terminalda so'raladi):
 
 ```bash
 npm run db:create-admin
 ```
 
-Yuklangan rasmlar `data/uploads/` papkasida saqlanadi (`UPLOADS_DIR` bilan o'zgartirish mumkin) va git'ga tushmaydi. Serverda bu papkani ham zaxiralash kerak.
+Yuklangan rasmlar `data/uploads/` papkasida saqlanadi (`UPLOADS_DIR` bilan o'zgartirish mumkin) va git'ga tushmaydi. Serverda ular baza bilan birga zaxiralanadi: `scripts/backup.sh`.
 
 `admin`, `api` va `uploads` nomlari band: kafe `slug`i bo'la olmaydi.
 

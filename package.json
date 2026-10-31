@@ -14,6 +14,7 @@
     "db:migrate": "npm run migrate -w @cafe/db",
     "db:seed": "npm run seed -w @cafe/db",
     "db:studio": "npm run studio -w @cafe/db",
-    "db:create-admin": "npm run create-admin -w @cafe/db"
+    "db:create-admin": "npm run create-admin -w @cafe/db",
+    "db:create-cafe": "npm run create-cafe -w @cafe/db"
   }
 }
