@@ -26,6 +26,11 @@ interface TelegramWebApp {
   expand(): void;
   platform: string;
   isVersionAtLeast(version: string): boolean;
+  /** 7.7+: xaritani surganda oyna yopilib ketmasligi uchun */
+  disableVerticalSwipes(): void;
+  enableVerticalSwipes(): void;
+  /** 6.2+ */
+  showConfirm(message: string, callback: (isConfirmed: boolean) => void): void;
   LocationManager: TelegramLocationManager;
   BackButton: {
     show(): void;

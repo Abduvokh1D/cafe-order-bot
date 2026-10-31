@@ -1,11 +1,14 @@
 "use client";
 
-import type { MenuProduct, OrderType } from "@cafe/db";
+import type { MenuProduct, OrderType, PaymentMethod } from "@cafe/db";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import type { OrderExtras } from "@/components/cart-screen";
+import { LocationPicker } from "@/components/location-picker";
 import { clearCart } from "@/lib/cart";
 import { formatPrice } from "@/lib/format";
-import { isLocationSupported, requestLocation, type Coordinates } from "@/lib/location";
+import type { Coordinates } from "@/lib/location";
+import { PAYMENT_LABELS } from "@/lib/payment";
 
 const PHONE_STORAGE_KEY = "order:phone";
 
@@ -43,46 +46,31 @@ export function CheckoutForm({
   slug,
   lines,
   total,
+  extras,
+  isMapOpen,
+  onMapOpen,
+  onMapClose,
   onPlaced,
 }: {
   slug: string;
   lines: { product: MenuProduct; quantity: number }[];
   total: number;
+  extras: OrderExtras;
+  isMapOpen: boolean;
+  onMapOpen: () => void;
+  onMapClose: () => void;
   onPlaced: (orderId: number) => void;
 }) {
   const router = useRouter();
   // Forma ochilganda bir marta yaratiladi: qayta yuborilsa, server buyurtmani ikkilamaydi
   const [requestId] = useState(() => crypto.randomUUID());
   const [type, setType] = useState<OrderType>("delivery");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [phone, setPhone] = useState(loadPhone);
   const [address, setAddress] = useState("");
   const [location, setLocation] = useState<Coordinates | null>(null);
-  const [canLocate, setCanLocate] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isActive = true;
-    void isLocationSupported().then((supported) => {
-      if (isActive) setCanLocate(supported);
-    });
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  async function handleLocation() {
-    setIsLocating(true);
-    setError(null);
-    try {
-      setLocation(await requestLocation());
-    } catch {
-      setError("Lokatsiyani olib bo'lmadi. Manzilni yozib qoldiring.");
-    } finally {
-      setIsLocating(false);
-    }
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -94,7 +82,7 @@ export function CheckoutForm({
     }
     const isDelivery = type === "delivery";
     if (isDelivery && !address.trim() && !location) {
-      setError(canLocate ? "Manzilni yozing yoki lokatsiyani yuboring." : "Manzilni yozing.");
+      setError("Manzilni yozing yoki xaritadan belgilang.");
       return;
     }
 
@@ -109,10 +97,13 @@ export function CheckoutForm({
           initData: window.Telegram?.WebApp.initData ?? "",
           requestId,
           type,
+          paymentMethod,
           phone,
           address: isDelivery ? address : null,
           latitude: isDelivery ? (location?.latitude ?? null) : null,
           longitude: isDelivery ? (location?.longitude ?? null) : null,
+          comment: extras.comment,
+          cutleryCount: extras.cutleryCount,
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
           expectedTotal: total,
         }),
@@ -148,7 +139,7 @@ export function CheckoutForm({
   const inputClass = "w-full rounded-xl bg-secondary px-4 py-3 outline-none placeholder:text-hint";
 
   return (
-    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-2">
         <div role="radiogroup" aria-label="Buyurtma turi" className="grid grid-cols-2 gap-1 rounded-xl bg-secondary p-1">
           {(
@@ -195,22 +186,38 @@ export function CheckoutForm({
                 className={`${inputClass} resize-none text-base font-normal`}
               />
             </label>
-            {canLocate && (
-              <button
-                type="button"
-                onClick={handleLocation}
-                disabled={isLocating}
-                className="rounded-xl bg-secondary py-3 text-sm font-medium disabled:opacity-50"
-              >
-                {isLocating
-                  ? "Lokatsiya aniqlanmoqda..."
-                  : location
-                    ? "📍 Lokatsiya qo'shildi (yangilash)"
-                    : "📍 Lokatsiyani yuborish"}
-              </button>
-            )}
+            <button type="button" onClick={onMapOpen} className="rounded-xl bg-secondary py-3 text-sm font-medium">
+              {location ? "📍 Joy belgilandi (o'zgartirish)" : "🗺 Xaritadan belgilash"}
+            </button>
           </div>
         )}
+
+        <section className="flex flex-col gap-2">
+          <h3 id="payment-title" className="text-sm font-medium">
+            To&apos;lov turi
+          </h3>
+          <div role="radiogroup" aria-labelledby="payment-title" className="grid grid-cols-2 gap-2">
+            {(["cash", "card"] as const).map((method) => (
+              <button
+                key={method}
+                type="button"
+                role="radio"
+                aria-checked={paymentMethod === method}
+                onClick={() => setPaymentMethod(method)}
+                className={`rounded-2xl border-2 bg-secondary px-3 py-3 text-left font-medium ${
+                  paymentMethod === method ? "border-foreground" : "border-transparent"
+                }`}
+              >
+                {PAYMENT_LABELS[method]}
+              </button>
+            ))}
+          </div>
+          <p className="text-sm text-hint">
+            {type === "delivery"
+              ? "To'lov buyurtmani olganingizda kuryerga qilinadi."
+              : "To'lov buyurtmani olib ketayotganda kafeda qilinadi."}
+          </p>
+        </section>
 
         <section aria-label="Buyurtma tarkibi" className="flex flex-col gap-1 text-sm">
           <h3 className="font-medium">Buyurtmangiz</h3>
@@ -246,6 +253,18 @@ export function CheckoutForm({
           {isSubmitting ? "Yuborilmoqda..." : "Buyurtmani tasdiqlash"}
         </button>
       </div>
+
+      {isMapOpen && (
+        <LocationPicker
+          initial={location}
+          onBack={onMapClose}
+          onConfirm={(picked) => {
+            setLocation(picked);
+            setError(null);
+            onMapClose();
+          }}
+        />
+      )}
     </form>
   );
 }

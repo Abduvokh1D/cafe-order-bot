@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { requireAdmin } from "@/lib/admin-session";
 import { formatDay, formatTime, isValidDay, shiftDay, TIME_ZONE, today } from "@/lib/day";
 import { formatPrice } from "@/lib/format";
+import { PAYMENT_LABELS } from "@/lib/payment";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   new: "🆕 Yangi",
@@ -155,6 +156,8 @@ function OrderCard({ order }: { order: AdminOrder }) {
           📍 Xaritada ochish
         </a>
       )}
+      {order.comment && <p>💬 {order.comment}</p>}
+      {order.cutleryCount > 0 && <p>🍴 Vilka-qoshiq: {order.cutleryCount} ta</p>}
       <ul className="flex flex-col gap-1 border-t border-secondary pt-2">
         {order.items.map((item) => (
           <li key={item.productName} className="flex justify-between gap-3">
@@ -166,7 +169,9 @@ function OrderCard({ order }: { order: AdminOrder }) {
         ))}
       </ul>
       <div className="flex justify-between gap-3 border-t border-secondary pt-2 font-semibold">
-        <span>Jami</span>
+        <span>
+          Jami <span className="font-normal text-hint">· {PAYMENT_LABELS[order.paymentMethod]}</span>
+        </span>
         <span>{formatPrice(order.totalAmount)}</span>
       </div>
     </article>

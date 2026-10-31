@@ -1,5 +1,5 @@
-import { getCafeForOrder, placeOrder, type OrderType } from "@cafe/db";
-import { MAX_QUANTITY } from "@/lib/cart-limits";
+import { getCafeForOrder, placeOrder, type OrderType, type PaymentMethod } from "@cafe/db";
+import { MAX_COMMENT_LENGTH, MAX_CUTLERY, MAX_QUANTITY } from "@/lib/cart-limits";
 import { formatStaffMessage, sendStaffMessage } from "@/lib/staff-notify";
 import { verifyInitData } from "@/lib/telegram-auth";
 
@@ -12,10 +12,13 @@ type OrderRequest = {
   initData: string;
   requestId: string;
   type: OrderType;
+  paymentMethod: PaymentMethod;
   phone: string;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  comment: string | null;
+  cutleryCount: number;
   items: { productId: number; quantity: number }[];
   expectedTotal: number;
 };
@@ -38,6 +41,10 @@ function parseRequest(body: unknown): OrderRequest | null {
   if (typeof requestId !== "string" || !UUID.test(requestId)) return null;
   if (type !== "delivery" && type !== "pickup") return null;
 
+  // Eski oynada qolgan Mini App bu maydonni yubormaydi: u naqd hisoblanadi
+  const paymentMethod = data.paymentMethod ?? "cash";
+  if (paymentMethod !== "cash" && paymentMethod !== "card") return null;
+
   const cleanPhone = typeof phone === "string" ? phone.trim() : "";
   const digits = cleanPhone.replace(/\D/g, "");
   if (!/^\+?[\d\s()-]+$/.test(cleanPhone) || digits.length < 9 || digits.length > 15) return null;
@@ -50,6 +57,14 @@ function parseRequest(body: unknown): OrderRequest | null {
     return null;
   }
   if (type === "delivery" && !address && !hasLocation) return null;
+
+  const comment = typeof data.comment === "string" ? data.comment.trim() : "";
+  if (comment.length > MAX_COMMENT_LENGTH) return null;
+
+  const cutleryCount = data.cutleryCount ?? 0;
+  if (!Number.isInteger(cutleryCount) || (cutleryCount as number) < 0 || (cutleryCount as number) > MAX_CUTLERY) {
+    return null;
+  }
 
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_LINES) return null;
   const seen = new Set<number>();
@@ -67,10 +82,13 @@ function parseRequest(body: unknown): OrderRequest | null {
     initData,
     requestId,
     type,
+    paymentMethod,
     phone: cleanPhone,
     address: type === "delivery" && address ? address : null,
     latitude: type === "delivery" && hasLocation ? (data.latitude as number) : null,
     longitude: type === "delivery" && hasLocation ? (data.longitude as number) : null,
+    comment: comment || null,
+    cutleryCount: cutleryCount as number,
     items: items as OrderRequest["items"],
     expectedTotal: expectedTotal as number,
   };
@@ -104,10 +122,13 @@ export async function POST(request: Request) {
           username: user.username ?? null,
         },
         type: input.type,
+        paymentMethod: input.paymentMethod,
         phone: input.phone,
         address: input.address,
         latitude: input.latitude,
         longitude: input.longitude,
+        comment: input.comment,
+        cutleryCount: input.cutleryCount,
         items: input.items,
         expectedTotal: input.expectedTotal,
       },
@@ -115,12 +136,15 @@ export async function POST(request: Request) {
         const text = formatStaffMessage({
           order,
           type: input.type,
+          paymentMethod: input.paymentMethod,
           customerName,
           username: user.username ?? null,
           phone: input.phone,
           address: input.address,
           latitude: input.latitude,
           longitude: input.longitude,
+          comment: input.comment,
+          cutleryCount: input.cutleryCount,
         });
         const messageId = await sendStaffMessage(botToken, staffChatId, order.orderId, text);
         staffNotified = true;

@@ -8,8 +8,9 @@
   --hint: var(--tg-theme-hint-color, #71717a);
   --secondary: var(--tg-theme-secondary-bg-color, #f4f4f5);
   --section: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
-  --button: var(--tg-theme-button-color, #2481cc);
-  --button-text: var(--tg-theme-button-text-color, #ffffff);
+  /* Asosiy rang Telegram mavzusiga bog'liq emas: har bir mijozda bir xil sariq */
+  --button: #ffdd00;
+  --button-text: #1a1a1a;
   --destructive: var(--tg-theme-destructive-text-color, #dc2626);
 }
 

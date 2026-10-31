@@ -1,20 +1,24 @@
-import type { OrderType, PlacedOrder } from "@cafe/db";
+import type { OrderType, PaymentMethod, PlacedOrder } from "@cafe/db";
 import { formatPrice } from "@/lib/format";
+import { PAYMENT_LABELS } from "@/lib/payment";
 
 export type StaffMessageInput = {
   order: PlacedOrder;
   type: OrderType;
+  paymentMethod: PaymentMethod;
   customerName: string;
   username: string | null;
   phone: string;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  comment: string | null;
+  cutleryCount: number;
 };
 
 // Oddiy matn sifatida yuboriladi (parse_mode yo'q): mijoz yozgan manzil formatlashni buza olmaydi
 export function formatStaffMessage(input: StaffMessageInput) {
-  const { order, type, customerName, username, phone, address, latitude, longitude } = input;
+  const { order, type, paymentMethod, customerName, username, phone, address, latitude, longitude, comment, cutleryCount } = input;
   return [
     `🆕 Yangi buyurtma №${order.orderId}`,
     type === "delivery" ? "🚗 Yetkazib berish" : "🏃 Olib ketish",
@@ -29,8 +33,11 @@ export function formatStaffMessage(input: StaffMessageInput) {
     ...order.lines.map(
       (line) => `${line.name} × ${line.quantity} — ${formatPrice(line.unitPrice * line.quantity)}`,
     ),
+    ...(cutleryCount > 0 ? [`🍴 Vilka-qoshiq: ${cutleryCount} ta`] : []),
+    ...(comment ? [`💬 Izoh: ${comment}`] : []),
     "",
     `Jami: ${formatPrice(order.totalAmount)}`,
+    `To'lov: ${PAYMENT_LABELS[paymentMethod]}`,
   ].join("\n");
 }
 

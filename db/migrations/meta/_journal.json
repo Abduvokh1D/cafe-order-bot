@@ -29,6 +29,27 @@
       "when": 1793371956923,
       "tag": "0003_admin_panel",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793425726703,
+      "tag": "0004_menu_design",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793427251243,
+      "tag": "0005_order_comment",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793429298305,
+      "tag": "0006_order_payment",
+      "breakpoints": true
     }
   ]
 }

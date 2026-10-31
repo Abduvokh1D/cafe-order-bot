@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "./index.ts";
-import type { MenuProduct, OrderStatus, OrderType } from "./queries.ts";
-import { categories, customers, orderItems, orders, products } from "./schema.ts";
+import type { MenuProduct, OrderStatus, OrderType, PaymentMethod } from "./queries.ts";
+import { banners, cafes, categories, customers, orderItems, orders, products } from "./schema.ts";
 
 // Har bir funksiya cafeId oladi va yozuvni shu bo'yicha tanlaydi: admin boshqa kafe
 // yozuviga, hatto id'sini bilgan bo'lsa ham, tega olmaydi.
@@ -157,10 +157,13 @@ export type AdminOrder = {
   id: number;
   status: OrderStatus;
   type: OrderType;
+  paymentMethod: PaymentMethod;
   phone: string;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  comment: string | null;
+  cutleryCount: number;
   totalAmount: number;
   createdAt: Date;
   customerName: string;
@@ -180,10 +183,13 @@ export async function getOrdersForDay(
       id: orders.id,
       status: orders.status,
       type: orders.type,
+      paymentMethod: orders.paymentMethod,
       phone: orders.phone,
       address: orders.address,
       latitude: orders.latitude,
       longitude: orders.longitude,
+      comment: orders.comment,
+      cutleryCount: orders.cutleryCount,
       totalAmount: orders.totalAmount,
       createdAt: orders.createdAt,
       firstName: customers.firstName,
@@ -227,4 +233,50 @@ export async function getOrdersForDay(
       .filter((item) => item.orderId === order.id)
       .map(({ orderId: _orderId, ...item }) => item),
   }));
+}
+
+export type AdminBanner = { id: number; imageUrl: string; isActive: boolean };
+
+export async function getAdminSettings(cafeId: number) {
+  const db = getDb();
+  const [cafe] = await db
+    .select({
+      deliveryMinMinutes: cafes.deliveryMinMinutes,
+      deliveryMaxMinutes: cafes.deliveryMaxMinutes,
+    })
+    .from(cafes)
+    .where(eq(cafes.id, cafeId));
+  const bannerRows: AdminBanner[] = await db
+    .select({ id: banners.id, imageUrl: banners.imageUrl, isActive: banners.isActive })
+    .from(banners)
+    .where(eq(banners.cafeId, cafeId))
+    .orderBy(desc(banners.id));
+  return { ...cafe, banners: bannerRows };
+}
+
+export async function setDeliveryTime(cafeId: number, minMinutes: number | null, maxMinutes: number | null) {
+  await getDb()
+    .update(cafes)
+    .set({ deliveryMinMinutes: minMinutes, deliveryMaxMinutes: maxMinutes })
+    .where(eq(cafes.id, cafeId));
+}
+
+export async function createBanner(cafeId: number, imageUrl: string) {
+  await getDb().insert(banners).values({ cafeId, imageUrl });
+}
+
+export async function setBannerActive(cafeId: number, bannerId: number, isActive: boolean) {
+  await getDb()
+    .update(banners)
+    .set({ isActive })
+    .where(and(eq(banners.cafeId, cafeId), eq(banners.id, bannerId)));
+}
+
+/** Banner buyurtmalarga bog'lanmagan, shuning uchun butunlay o'chiriladi. Rasm manzilini qaytaradi. */
+export async function deleteBanner(cafeId: number, bannerId: number) {
+  const [deleted] = await getDb()
+    .delete(banners)
+    .where(and(eq(banners.cafeId, cafeId), eq(banners.id, bannerId)))
+    .returning({ imageUrl: banners.imageUrl });
+  return deleted?.imageUrl ?? null;
 }

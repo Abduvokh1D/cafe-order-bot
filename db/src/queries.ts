@@ -1,6 +1,7 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "./index.ts";
 import {
+  banners,
   cafes,
   categories,
   customers,
@@ -26,7 +27,14 @@ export type MenuCategory = {
 };
 
 export type CafeMenu = {
-  cafe: { id: number; name: string; slug: string };
+  cafe: {
+    id: number;
+    name: string;
+    slug: string;
+    deliveryMinMinutes: number | null;
+    deliveryMaxMinutes: number | null;
+  };
+  banners: { id: number; imageUrl: string }[];
   categories: MenuCategory[];
 };
 
@@ -35,10 +43,22 @@ export async function getCafeMenu(slug: string): Promise<CafeMenu | null> {
   const db = getDb();
 
   const [cafe] = await db
-    .select({ id: cafes.id, name: cafes.name, slug: cafes.slug })
+    .select({
+      id: cafes.id,
+      name: cafes.name,
+      slug: cafes.slug,
+      deliveryMinMinutes: cafes.deliveryMinMinutes,
+      deliveryMaxMinutes: cafes.deliveryMaxMinutes,
+    })
     .from(cafes)
     .where(eq(cafes.slug, slug));
   if (!cafe) return null;
+
+  const bannerRows = await db
+    .select({ id: banners.id, imageUrl: banners.imageUrl })
+    .from(banners)
+    .where(and(eq(banners.cafeId, cafe.id), eq(banners.isActive, true)))
+    .orderBy(desc(banners.id));
 
   const categoryRows = await db
     .select({ id: categories.id, name: categories.name })
@@ -62,6 +82,7 @@ export async function getCafeMenu(slug: string): Promise<CafeMenu | null> {
 
   return {
     cafe,
+    banners: bannerRows,
     categories: categoryRows
       .map((category) => ({
         ...category,
@@ -98,6 +119,7 @@ export async function registerCafeBot(slug: string, botToken: string) {
 }
 
 export type OrderType = "delivery" | "pickup";
+export type PaymentMethod = "cash" | "card";
 
 export type PlaceOrderInput = {
   cafeId: number;
@@ -109,10 +131,13 @@ export type PlaceOrderInput = {
     username: string | null;
   };
   type: OrderType;
+  paymentMethod: PaymentMethod;
   phone: string;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  comment: string | null;
+  cutleryCount: number;
   items: { productId: number; quantity: number }[];
   /** Mijoz ekranda ko'rgan jami: narx o'zgargan bo'lsa, buyurtma qabul qilinmaydi */
   expectedTotal: number;
@@ -218,10 +243,13 @@ export async function placeOrder(
           customerId,
           requestId,
           type: input.type,
+          paymentMethod: input.paymentMethod,
           phone: input.phone,
           address: input.address,
           latitude: input.latitude,
           longitude: input.longitude,
+          comment: input.comment,
+          cutleryCount: input.cutleryCount,
           totalAmount,
         })
         .returning({ id: orders.id });
@@ -344,4 +372,73 @@ export async function advanceOrder(input: {
     order: { ...order, status: input.status },
     previousStatus: order.status,
   };
+}
+
+const CUSTOMER_ORDERS_LIMIT = 20;
+
+export type CustomerOrder = {
+  id: number;
+  status: OrderStatus;
+  type: OrderType;
+  paymentMethod: PaymentMethod;
+  totalAmount: number;
+  address: string | null;
+  hasLocation: boolean;
+  comment: string | null;
+  cutleryCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  items: { productName: string; unitPrice: number; quantity: number }[];
+};
+
+/** Mijozning shu kafedagi oxirgi buyurtmalari, yangisi birinchi. Faqat egasiga qaytariladi. */
+export async function getCustomerOrders(cafeId: number, telegramId: number): Promise<CustomerOrder[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: orders.id,
+      status: orders.status,
+      type: orders.type,
+      paymentMethod: orders.paymentMethod,
+      totalAmount: orders.totalAmount,
+      address: orders.address,
+      latitude: orders.latitude,
+      comment: orders.comment,
+      cutleryCount: orders.cutleryCount,
+      createdAt: orders.createdAt,
+      updatedAt: orders.updatedAt,
+    })
+    .from(orders)
+    .innerJoin(
+      customers,
+      and(eq(customers.cafeId, orders.cafeId), eq(customers.id, orders.customerId)),
+    )
+    .where(and(eq(orders.cafeId, cafeId), eq(customers.telegramId, telegramId)))
+    .orderBy(desc(orders.id))
+    .limit(CUSTOMER_ORDERS_LIMIT);
+  if (rows.length === 0) return [];
+
+  const itemRows = await db
+    .select({
+      orderId: orderItems.orderId,
+      productName: orderItems.productName,
+      unitPrice: orderItems.unitPrice,
+      quantity: orderItems.quantity,
+    })
+    .from(orderItems)
+    .where(
+      and(
+        eq(orderItems.cafeId, cafeId),
+        inArray(orderItems.orderId, rows.map((row) => row.id)),
+      ),
+    )
+    .orderBy(asc(orderItems.id));
+
+  return rows.map(({ latitude, ...order }) => ({
+    ...order,
+    hasLocation: latitude !== null,
+    items: itemRows
+      .filter((item) => item.orderId === order.id)
+      .map(({ orderId: _orderId, ...item }) => item),
+  }));
 }

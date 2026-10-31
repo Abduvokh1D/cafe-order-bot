@@ -27,6 +27,16 @@ export function formatDay(day: string) {
   return day.split("-").reverse().join(".");
 }
 
+/** 31.10 11:28 */
+export function formatDateTime(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+  return `${parts.replace("/", ".")} ${formatTime(date)}`;
+}
+
 export function formatTime(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: TIME_ZONE,

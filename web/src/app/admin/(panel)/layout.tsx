@@ -17,6 +17,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
           <nav aria-label="Admin bo'limlari" className="flex gap-4 font-medium">
             <Link href="/admin">Buyurtmalar</Link>
             <Link href="/admin/menu">Menyu</Link>
+            <Link href="/admin/settings">Sozlamalar</Link>
           </nav>
           <Suspense fallback={null}>
             <AdminBadge />

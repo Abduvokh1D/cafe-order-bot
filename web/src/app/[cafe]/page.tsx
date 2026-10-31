@@ -21,11 +21,14 @@ async function CafeMenuLoader({ params }: { params: Promise<{ cafe: string }> })
 
 function MenuSkeleton() {
   return (
-    <div className="flex flex-1 flex-col gap-3 bg-secondary p-4" aria-label="Menyu yuklanmoqda">
-      <div className="h-7 w-40 animate-pulse rounded-lg bg-section" />
-      {[0, 1, 2, 3].map((item) => (
-        <div key={item} className="h-28 animate-pulse rounded-2xl bg-section" />
-      ))}
+    <div className="flex flex-1 flex-col gap-4 bg-background p-4" aria-label="Menyu yuklanmoqda">
+      <div className="h-8 w-40 animate-pulse rounded-lg bg-secondary" />
+      <div className="h-11 animate-pulse rounded-full bg-secondary" />
+      <div className="grid grid-cols-2 gap-3">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="aspect-square animate-pulse rounded-2xl bg-secondary" />
+        ))}
+      </div>
     </div>
   );
 }

@@ -42,16 +42,31 @@ export const orderStatus = pgEnum("order_status", [
 
 export const orderType = pgEnum("order_type", ["delivery", "pickup"]);
 
-export const cafes = pgTable("cafes", {
-  id: id(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  // Bot ishga tushganda o'zi yozadi. Maxfiy: mijozga yuboriladigan so'rovlarda tanlanmaydi
-  botToken: text("bot_token"),
-  // Buyurtmalar keladigan xodimlar guruhi (Telegram chat id)
-  staffChatId: bigint("staff_chat_id", { mode: "number" }),
-  createdAt: createdAt(),
-});
+// Mijoz buyurtmani olganda to'laydi: naqd yoki karta bilan. Onlayn to'lov hali yo'q
+export const paymentMethod = pgEnum("payment_method", ["cash", "card"]);
+
+export const cafes = pgTable(
+  "cafes",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    // Bot ishga tushganda o'zi yozadi. Maxfiy: mijozga yuboriladigan so'rovlarda tanlanmaydi
+    botToken: text("bot_token"),
+    // Buyurtmalar keladigan xodimlar guruhi (Telegram chat id)
+    staffChatId: bigint("staff_chat_id", { mode: "number" }),
+    // Menyuda ko'rsatiladigan taxminiy vaqt; kiritilmagan bo'lsa, ko'rsatilmaydi
+    deliveryMinMinutes: integer("delivery_min_minutes"),
+    deliveryMaxMinutes: integer("delivery_max_minutes"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "cafes_delivery_time_check",
+      sql`(${t.deliveryMinMinutes} IS NULL AND ${t.deliveryMaxMinutes} IS NULL) OR (${t.deliveryMinMinutes} > 0 AND ${t.deliveryMaxMinutes} >= ${t.deliveryMinMinutes})`,
+    ),
+  ],
+);
 
 export const admins = pgTable("admins", {
   id: id(),
@@ -72,6 +87,19 @@ export const adminSessions = pgTable("admin_sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: createdAt(),
 });
+
+// Chegirma va aksiya rasmlari: menyuda faqat yoqilganlari ko'rinadi
+export const banners = pgTable(
+  "banners",
+  {
+    id: id(),
+    cafeId: cafeId(),
+    imageUrl: text("image_url").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("banners_cafe_idx").on(t.cafeId)],
+);
 
 export const categories = pgTable(
   "categories",
@@ -147,10 +175,14 @@ export const orders = pgTable(
     staffMessageId: integer("staff_message_id"),
     status: orderStatus("status").notNull().default("new"),
     type: orderType("type").notNull(),
+    paymentMethod: paymentMethod("payment_method").notNull().default("cash"),
     phone: text("phone").notNull(),
     address: text("address"),
     latitude: doublePrecision("latitude"),
     longitude: doublePrecision("longitude"),
+    // Mijoz izohi va nechta vilka-qoshiq kerakligi: faqat xodimlarga ko'rsatiladi
+    comment: text("comment"),
+    cutleryCount: integer("cutlery_count").notNull().default(0),
     totalAmount: integer("total_amount").notNull(),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -167,6 +199,7 @@ export const orders = pgTable(
       foreignColumns: [customers.cafeId, customers.id],
     }).onDelete("restrict"),
     check("orders_total_amount_check", sql`${t.totalAmount} >= 0`),
+    check("orders_cutlery_count_check", sql`${t.cutleryCount} >= 0`),
     // Yetkazib berishda manzil yoki lokatsiya bo'lishi shart
     check(
       "orders_delivery_location_check",

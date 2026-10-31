@@ -3,10 +3,14 @@
 import {
   archiveCategory,
   archiveProduct,
+  createBanner,
   createCategory,
   createProduct,
+  deleteBanner,
   loginAdmin,
   renameCategory,
+  setBannerActive,
+  setDeliveryTime,
   setProductAvailability,
   updateProduct,
   type ProductInput,
@@ -20,6 +24,7 @@ import { deleteImage, saveImage } from "@/lib/uploads";
 const MAX_NAME_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_PRICE = 100_000_000;
+const MAX_DELIVERY_MINUTES = 600;
 
 function text(formData: FormData, field: string) {
   const value = formData.get(field);
@@ -172,5 +177,61 @@ export async function archiveProductAction(_state: FormState, formData: FormData
   // Rasm saqlanadi: arxivdagi taom buyurtmalar tarixida qoladi
   await archiveProduct(admin.cafeId, productId);
   revalidatePath("/admin/menu");
+  return { ok: true };
+}
+
+export async function setDeliveryTimeAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const minText = text(formData, "minMinutes");
+  const maxText = text(formData, "maxMinutes");
+
+  // Ikkalasi bo'sh bo'lsa, menyuda vaqt ko'rsatilmaydi
+  if (!minText && !maxText) {
+    await setDeliveryTime(admin.cafeId, null, null);
+    revalidatePath("/admin/settings");
+    return { ok: true };
+  }
+
+  const min = positiveInt(formData, "minMinutes");
+  const max = positiveInt(formData, "maxMinutes");
+  if (!min || !max || min > max || max > MAX_DELIVERY_MINUTES) {
+    return { error: "Vaqtni daqiqada yozing, masalan: 30 va 40. Birinchisi ikkinchisidan katta bo'lmasin." };
+  }
+
+  await setDeliveryTime(admin.cafeId, min, max);
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+export async function createBannerAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const file = uploadedFile(formData);
+  if (!file) return { error: "Rasmni tanlang." };
+
+  const saved = await saveImage(file);
+  if ("error" in saved) return saved;
+
+  await createBanner(admin.cafeId, saved.url);
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+export async function setBannerActiveAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const bannerId = positiveInt(formData, "id");
+  if (!bannerId) return { error: "Rasm topilmadi." };
+
+  await setBannerActive(admin.cafeId, bannerId, text(formData, "isActive") === "true");
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+export async function deleteBannerAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const bannerId = positiveInt(formData, "id");
+  if (!bannerId) return { error: "Rasm topilmadi." };
+
+  await deleteImage(await deleteBanner(admin.cafeId, bannerId));
+  revalidatePath("/admin/settings");
   return { ok: true };
 }
