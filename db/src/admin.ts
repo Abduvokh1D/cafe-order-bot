@@ -164,6 +164,7 @@ export type AdminOrder = {
   longitude: number | null;
   comment: string | null;
   cutleryCount: number;
+  deliveryFee: number;
   totalAmount: number;
   createdAt: Date;
   customerName: string;
@@ -190,6 +191,7 @@ export async function getOrdersForDay(
       longitude: orders.longitude,
       comment: orders.comment,
       cutleryCount: orders.cutleryCount,
+      deliveryFee: orders.deliveryFee,
       totalAmount: orders.totalAmount,
       createdAt: orders.createdAt,
       firstName: customers.firstName,
@@ -243,6 +245,8 @@ export async function getAdminSettings(cafeId: number) {
     .select({
       deliveryMinMinutes: cafes.deliveryMinMinutes,
       deliveryMaxMinutes: cafes.deliveryMaxMinutes,
+      deliveryFee: cafes.deliveryFee,
+      freeDeliveryFrom: cafes.freeDeliveryFrom,
     })
     .from(cafes)
     .where(eq(cafes.id, cafeId));
@@ -259,6 +263,10 @@ export async function setDeliveryTime(cafeId: number, minMinutes: number | null,
     .update(cafes)
     .set({ deliveryMinMinutes: minMinutes, deliveryMaxMinutes: maxMinutes })
     .where(eq(cafes.id, cafeId));
+}
+
+export async function setDeliveryPrice(cafeId: number, deliveryFee: number | null, freeDeliveryFrom: number | null) {
+  await getDb().update(cafes).set({ deliveryFee, freeDeliveryFrom }).where(eq(cafes.id, cafeId));
 }
 
 export async function createBanner(cafeId: number, imageUrl: string) {

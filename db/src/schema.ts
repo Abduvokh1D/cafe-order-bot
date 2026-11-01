@@ -58,9 +58,14 @@ export const cafes = pgTable(
     // Menyuda ko'rsatiladigan taxminiy vaqt; kiritilmagan bo'lsa, ko'rsatilmaydi
     deliveryMinMinutes: integer("delivery_min_minutes"),
     deliveryMaxMinutes: integer("delivery_max_minutes"),
+    // So'mda. null: kiritilmagan, 0: bepul. Hisob qoidasi pricing.ts da
+    deliveryFee: integer("delivery_fee"),
+    freeDeliveryFrom: integer("free_delivery_from"),
     createdAt: createdAt(),
   },
   (t) => [
+    check("cafes_delivery_fee_check", sql`${t.deliveryFee} >= 0`),
+    check("cafes_free_delivery_from_check", sql`${t.freeDeliveryFrom} > 0`),
     check(
       "cafes_delivery_time_check",
       sql`(${t.deliveryMinMinutes} IS NULL AND ${t.deliveryMaxMinutes} IS NULL) OR (${t.deliveryMinMinutes} > 0 AND ${t.deliveryMaxMinutes} >= ${t.deliveryMinMinutes})`,
@@ -183,6 +188,8 @@ export const orders = pgTable(
     // Mijoz izohi va nechta vilka-qoshiq kerakligi: faqat xodimlarga ko'rsatiladi
     comment: text("comment"),
     cutleryCount: integer("cutlery_count").notNull().default(0),
+    // Buyurtma paytidagi narx: kafe keyin o'zgartirsa ham eski buyurtma o'zgarmaydi. Jamiga kiradi
+    deliveryFee: integer("delivery_fee").notNull().default(0),
     totalAmount: integer("total_amount").notNull(),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -200,6 +207,7 @@ export const orders = pgTable(
     }).onDelete("restrict"),
     check("orders_total_amount_check", sql`${t.totalAmount} >= 0`),
     check("orders_cutlery_count_check", sql`${t.cutleryCount} >= 0`),
+    check("orders_delivery_fee_check", sql`${t.deliveryFee} >= 0`),
     // Yetkazib berishda manzil yoki lokatsiya bo'lishi shart
     check(
       "orders_delivery_location_check",

@@ -159,6 +159,12 @@ export function OrderTracker({
               </li>
             ))}
           </ul>
+          {order.deliveryFee > 0 && (
+            <div className="flex justify-between gap-3 text-sm">
+              <span>Yetkazib berish</span>
+              <span className="shrink-0 tabular-nums text-hint">{formatPrice(order.deliveryFee)}</span>
+            </div>
+          )}
           <div className="flex justify-between gap-3 border-t border-secondary pt-3 font-bold">
             <span>Jami</span>
             <span className="tabular-nums">{formatPrice(order.totalAmount)}</span>

@@ -114,7 +114,7 @@ function DayReport({ orders }: { orders: AdminOrder[] }) {
           </ol>
         </div>
       )}
-      <p className="text-xs text-hint">Summa va o&apos;rtacha chekka bekor qilingan buyurtmalar kirmaydi.</p>
+      <p className="text-xs text-hint">Summa va o&apos;rtacha chekka yetkazish narxi kiradi, bekor qilingan buyurtmalar kirmaydi.</p>
     </section>
   );
 }
@@ -168,6 +168,12 @@ function OrderCard({ order }: { order: AdminOrder }) {
           </li>
         ))}
       </ul>
+      {order.deliveryFee > 0 && (
+        <div className="flex justify-between gap-3 border-t border-secondary pt-2">
+          <span>Yetkazib berish</span>
+          <span className="shrink-0 text-hint">{formatPrice(order.deliveryFee)}</span>
+        </div>
+      )}
       <div className="flex justify-between gap-3 border-t border-secondary pt-2 font-semibold">
         <span>
           Jami <span className="font-normal text-hint">· {PAYMENT_LABELS[order.paymentMethod]}</span>

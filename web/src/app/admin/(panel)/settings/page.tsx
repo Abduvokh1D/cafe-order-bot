@@ -5,6 +5,7 @@ import {
   createBannerAction,
   deleteBannerAction,
   setBannerActiveAction,
+  setDeliveryPriceAction,
   setDeliveryTimeAction,
 } from "@/app/admin/actions";
 import { AdminForm } from "@/components/admin/admin-form";
@@ -60,6 +61,41 @@ async function SettingsEditor() {
             </button>
           </AdminForm>
         </details>
+      </section>
+
+      <section aria-label="Yetkazib berish narxi" className="flex flex-col gap-3 rounded-2xl bg-section p-4">
+        <div>
+          <h2 className="font-semibold">Yetkazib berish narxi</h2>
+          <p className="text-sm text-hint">
+            Buyurtma summasiga qo&apos;shiladi. 0 yozsangiz, bepul deb ko&apos;rsatiladi. Bo&apos;sh qoldirsangiz, mijozga
+            narx ko&apos;rsatilmaydi. Olib ketishda narx qo&apos;shilmaydi.
+          </p>
+        </div>
+        <AdminForm action={setDeliveryPriceAction} showSaved className="grid grid-cols-2 items-end gap-3">
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Narxi (so&apos;m)
+            <input
+              name="deliveryFee"
+              inputMode="numeric"
+              defaultValue={settings.deliveryFee ?? ""}
+              placeholder="10000"
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Bepul: shu summadan
+            <input
+              name="freeDeliveryFrom"
+              inputMode="numeric"
+              defaultValue={settings.freeDeliveryFrom ?? ""}
+              placeholder="100000"
+              className={inputClass}
+            />
+          </label>
+          <button type="submit" className={`${primaryButton} col-span-2 justify-self-start`}>
+            Saqlash
+          </button>
+        </AdminForm>
       </section>
 
       <section aria-label="Yetkazib berish vaqti" className="flex flex-col gap-3 rounded-2xl bg-section p-4">

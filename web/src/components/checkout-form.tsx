@@ -1,6 +1,7 @@
 "use client";
 
 import type { MenuProduct, OrderType, PaymentMethod } from "@cafe/db";
+import { getDeliveryFee, type DeliveryPricing } from "@cafe/db/pricing";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { OrderExtras } from "@/components/cart-screen";
@@ -45,7 +46,8 @@ const DEFAULT_ERROR = "Buyurtma yuborilmadi. Internetni tekshirib, qayta urinib 
 export function CheckoutForm({
   slug,
   lines,
-  total,
+  itemsTotal,
+  pricing,
   extras,
   isMapOpen,
   onMapOpen,
@@ -54,7 +56,8 @@ export function CheckoutForm({
 }: {
   slug: string;
   lines: { product: MenuProduct; quantity: number }[];
-  total: number;
+  itemsTotal: number;
+  pricing: DeliveryPricing;
   extras: OrderExtras;
   isMapOpen: boolean;
   onMapOpen: () => void;
@@ -71,6 +74,8 @@ export function CheckoutForm({
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const deliveryFee = getDeliveryFee(type, itemsTotal, pricing);
+  const total = itemsTotal + deliveryFee;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -241,6 +246,18 @@ export function CheckoutForm({
       </div>
 
       <div className="flex flex-col gap-3 border-t border-secondary p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {type === "delivery" && pricing.deliveryFee !== null && (
+          <dl className="flex flex-col gap-1 text-sm text-hint">
+            <div className="flex items-center justify-between">
+              <dt>Taomlar</dt>
+              <dd>{formatPrice(itemsTotal)}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt>Yetkazib berish</dt>
+              <dd>{deliveryFee > 0 ? formatPrice(deliveryFee) : "Bepul"}</dd>
+            </div>
+          </dl>
+        )}
         <div className="flex items-center justify-between font-semibold">
           <span>Jami</span>
           <span>{formatPrice(total)}</span>

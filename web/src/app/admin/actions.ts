@@ -10,6 +10,7 @@ import {
   loginAdmin,
   renameCategory,
   setBannerActive,
+  setDeliveryPrice,
   setDeliveryTime,
   setProductAvailability,
   updateProduct,
@@ -199,6 +200,26 @@ export async function setDeliveryTimeAction(_state: FormState, formData: FormDat
   }
 
   await setDeliveryTime(admin.cafeId, min, max);
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+export async function setDeliveryPriceAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  // "10 000" kabi yozish mumkin
+  const feeText = text(formData, "deliveryFee").replace(/\s/g, "");
+  const freeText = text(formData, "freeDeliveryFrom").replace(/\s/g, "");
+  const invalid = { error: "Summani so'mda, butun son bilan yozing, masalan: 10000" };
+
+  if (!feeText && freeText) return { error: "Avval yetkazish narxini yozing." };
+  if ((feeText && !/^\d+$/.test(feeText)) || (freeText && !/^\d+$/.test(freeText))) return invalid;
+
+  const fee = feeText ? Number(feeText) : null;
+  const freeFrom = freeText ? Number(freeText) : null;
+  if ((fee ?? 0) > MAX_PRICE || (freeFrom ?? 0) > MAX_PRICE || freeFrom === 0) return invalid;
+
+  // Narx bepul bo'lsa, chegaraning ma'nosi yo'q
+  await setDeliveryPrice(admin.cafeId, fee, fee ? freeFrom : null);
   revalidatePath("/admin/settings");
   return { ok: true };
 }

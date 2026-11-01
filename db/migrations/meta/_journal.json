@@ -50,6 +50,13 @@
       "when": 1793429298305,
       "tag": "0006_order_payment",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793431115818,
+      "tag": "0007_delivery_fee",
+      "breakpoints": true
     }
   ]
 }

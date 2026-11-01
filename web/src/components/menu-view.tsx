@@ -2,8 +2,10 @@
 
 import type { CafeMenu, MenuCategory, MenuProduct } from "@cafe/db";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CartScreen, type OrderExtras } from "@/components/cart-screen";
+import { FreeDeliveryBar, hasFreeDeliveryGoal } from "@/components/free-delivery-bar";
 import { CartIcon, CloseIcon, MenuIcon, OrdersIcon, SearchIcon } from "@/components/menu-icons";
 import { MyOrders } from "@/components/my-orders";
 import { ProductCard } from "@/components/product-card";
@@ -24,6 +26,7 @@ function normalize(text: string) {
 
 export function MenuView({ menu }: { menu: CafeMenu }) {
   const { slug } = menu.cafe;
+  const router = useRouter();
   const cart = useCart(slug);
   const [tab, setTab] = useState<Tab>("menu");
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -31,6 +34,19 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
   // Menyuga qaytib taom qo'shganda ham yozilgan izoh yo'qolmaydi
   const [extras, setExtras] = useState(NO_EXTRAS);
   const [trackedOrderId, setTrackedOrderId] = useState<number | null>(null);
+
+  // Kafe narxni yoki "tugadi" belgisini o'zgartirgan bo'lsa, ochiq turgan oyna ham yangisini ko'rsin
+  useEffect(() => {
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => document.removeEventListener("visibilitychange", refreshIfVisible);
+  }, [router]);
+
+  useEffect(() => {
+    if (isCartOpen) router.refresh();
+  }, [isCartOpen, router]);
 
   // Tugagan yoki menyudan olib tashlangan taomlar savat summasiga kirmaydi
   const products = menu.categories.flatMap((category) => category.products);
@@ -78,7 +94,11 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
   );
 
   return (
-    <div className={`flex flex-1 flex-col bg-background ${count > 0 && tab === "menu" ? "pb-36" : "pb-20"}`}>
+    <div
+      className={`flex flex-1 flex-col bg-background ${
+        count > 0 && tab === "menu" ? (hasFreeDeliveryGoal(menu.cafe) ? "pb-48" : "pb-36") : "pb-20"
+      }`}
+    >
       {tab === "orders" ? (
         <MyOrders
           slug={slug}
@@ -105,7 +125,7 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
             <>
               <Banners banners={menu.banners} />
               <CategoryTiles categories={menu.categories} />
-              <InfoChips deliveryTime={deliveryTime} />
+              <InfoChips deliveryTime={deliveryTime} deliveryFee={menu.cafe.deliveryFee} />
 
               {menu.categories.length === 0 ? (
                 <p className="p-8 text-center text-hint">Menyu hali tayyor emas.</p>
@@ -143,6 +163,11 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
             </button>
           </div>
         )}
+        {count > 0 && tab === "menu" && hasFreeDeliveryGoal(menu.cafe) && (
+          <div className="border-t border-secondary bg-background px-4 py-2">
+            <FreeDeliveryBar itemsTotal={total} pricing={menu.cafe} />
+          </div>
+        )}
         <nav
           aria-label="Asosiy bo'limlar"
           className="pointer-events-auto grid grid-cols-3 border-t border-secondary bg-background pb-[env(safe-area-inset-bottom)]"
@@ -174,6 +199,7 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
           cart={cart}
           lines={lines}
           total={total}
+          pricing={menu.cafe}
           soldOutNames={soldOutNames}
           suggestions={suggestions}
           extras={extras}
@@ -291,11 +317,14 @@ function CategoryTiles({ categories }: { categories: MenuCategory[] }) {
   );
 }
 
-function InfoChips({ deliveryTime }: { deliveryTime: string | null }) {
+function InfoChips({ deliveryTime, deliveryFee }: { deliveryTime: string | null; deliveryFee: number | null }) {
   const chipClass = "shrink-0 rounded-full bg-secondary px-3.5 py-2 text-sm font-medium";
   return (
     <ul aria-label="Yetkazib berish" className="flex gap-2 overflow-x-auto px-4 pt-5 [scrollbar-width:none]">
-      <li className={chipClass}>🚗 {deliveryTime ?? "Yetkazib berish"}</li>
+      {(deliveryTime || deliveryFee === null) && <li className={chipClass}>🚗 {deliveryTime ?? "Yetkazib berish"}</li>}
+      {deliveryFee !== null && (
+        <li className={chipClass}>🛵 {deliveryFee > 0 ? `Yetkazish ${formatPrice(deliveryFee)}` : "Yetkazish bepul"}</li>
+      )}
       <li className={chipClass}>🏃 Olib ketish</li>
     </ul>
   );

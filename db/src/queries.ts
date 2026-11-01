@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "./index.ts";
+import { getDeliveryFee } from "./pricing.ts";
 import {
   banners,
   cafes,
@@ -33,6 +34,8 @@ export type CafeMenu = {
     slug: string;
     deliveryMinMinutes: number | null;
     deliveryMaxMinutes: number | null;
+    deliveryFee: number | null;
+    freeDeliveryFrom: number | null;
   };
   banners: { id: number; imageUrl: string }[];
   categories: MenuCategory[];
@@ -49,6 +52,8 @@ export async function getCafeMenu(slug: string): Promise<CafeMenu | null> {
       slug: cafes.slug,
       deliveryMinMinutes: cafes.deliveryMinMinutes,
       deliveryMaxMinutes: cafes.deliveryMaxMinutes,
+      deliveryFee: cafes.deliveryFee,
+      freeDeliveryFrom: cafes.freeDeliveryFrom,
     })
     .from(cafes)
     .where(eq(cafes.slug, slug));
@@ -139,12 +144,13 @@ export type PlaceOrderInput = {
   comment: string | null;
   cutleryCount: number;
   items: { productId: number; quantity: number }[];
-  /** Mijoz ekranda ko'rgan jami: narx o'zgargan bo'lsa, buyurtma qabul qilinmaydi */
+  /** Mijoz ekranda ko'rgan jami (yetkazish bilan): narx o'zgargan bo'lsa, buyurtma qabul qilinmaydi */
   expectedTotal: number;
 };
 
 export type PlacedOrder = {
   orderId: number;
+  deliveryFee: number;
   totalAmount: number;
   lines: { name: string; unitPrice: number; quantity: number }[];
 };
@@ -216,7 +222,14 @@ export async function placeOrder(
       quantity: item.quantity,
     };
   });
-  const totalAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const itemsTotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+
+  const [pricing] = await db
+    .select({ deliveryFee: cafes.deliveryFee, freeDeliveryFrom: cafes.freeDeliveryFrom })
+    .from(cafes)
+    .where(eq(cafes.id, cafeId));
+  const deliveryFee = getDeliveryFee(input.type, itemsTotal, pricing);
+  const totalAmount = itemsTotal + deliveryFee;
   if (totalAmount !== input.expectedTotal) return { status: "price_changed" };
 
   try {
@@ -250,6 +263,7 @@ export async function placeOrder(
           longitude: input.longitude,
           comment: input.comment,
           cutleryCount: input.cutleryCount,
+          deliveryFee,
           totalAmount,
         })
         .returning({ id: orders.id });
@@ -265,7 +279,7 @@ export async function placeOrder(
         })),
       );
 
-      const staffMessageId = await notify({ orderId: id, totalAmount, lines });
+      const staffMessageId = await notify({ orderId: id, deliveryFee, totalAmount, lines });
       await tx.update(orders).set({ staffMessageId }).where(eq(orders.id, id));
       return id;
     });
@@ -381,6 +395,7 @@ export type CustomerOrder = {
   status: OrderStatus;
   type: OrderType;
   paymentMethod: PaymentMethod;
+  deliveryFee: number;
   totalAmount: number;
   address: string | null;
   hasLocation: boolean;
@@ -400,6 +415,7 @@ export async function getCustomerOrders(cafeId: number, telegramId: number): Pro
       status: orders.status,
       type: orders.type,
       paymentMethod: orders.paymentMethod,
+      deliveryFee: orders.deliveryFee,
       totalAmount: orders.totalAmount,
       address: orders.address,
       latitude: orders.latitude,

@@ -1,9 +1,11 @@
 "use client";
 
 import type { MenuProduct } from "@cafe/db";
+import type { DeliveryPricing } from "@cafe/db/pricing";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { CheckoutForm } from "@/components/checkout-form";
+import { FreeDeliveryBar, hasFreeDeliveryGoal } from "@/components/free-delivery-bar";
 import { BackIcon, ChevronIcon, CutleryIcon, TrashIcon } from "@/components/menu-icons";
 import { ProductCard, QuantityStepper } from "@/components/product-card";
 import type { Cart } from "@/lib/cart";
@@ -32,6 +34,7 @@ export function CartScreen({
   cart,
   lines,
   total,
+  pricing,
   soldOutNames,
   suggestions,
   extras,
@@ -47,6 +50,7 @@ export function CartScreen({
   cart: Cart;
   lines: { product: MenuProduct; quantity: number }[];
   total: number;
+  pricing: DeliveryPricing;
   soldOutNames: string[];
   suggestions: MenuProduct[];
   extras: OrderExtras;
@@ -110,7 +114,8 @@ export function CartScreen({
     );
   }
 
-  const subtitle = [formatPrice(total), deliveryTime].filter(Boolean).join(" · ");
+  // Formada jami yetkazish bilan pastda ko'rsatiladi: tepada boshqa summa turmasin
+  const subtitle = [step === "cart" ? formatPrice(total) : null, deliveryTime].filter(Boolean).join(" · ");
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Savat" className="fixed inset-0 z-30 flex flex-col bg-secondary">
@@ -125,7 +130,7 @@ export function CartScreen({
         </button>
         <div className="flex min-w-0 flex-1 flex-col items-center text-center">
           <h2 className="max-w-full truncate font-bold">{step === "cart" ? cafeName : "Buyurtma berish"}</h2>
-          <p className="max-w-full truncate text-xs text-hint">{subtitle}</p>
+          {subtitle && <p className="max-w-full truncate text-xs text-hint">{subtitle}</p>}
         </div>
         {step === "cart" && lines.length > 0 ? (
           <button
@@ -177,6 +182,12 @@ export function CartScreen({
                 </ul>
               )}
             </section>
+
+            {lines.length > 0 && hasFreeDeliveryGoal(pricing) && (
+              <section aria-label="Bepul yetkazish" className="rounded-3xl bg-background p-4">
+                <FreeDeliveryBar itemsTotal={total} pricing={pricing} />
+              </section>
+            )}
 
             {lines.length > 0 && (
               <section aria-label="Qo'shimcha" className="flex flex-col gap-2 rounded-3xl bg-background p-3">
@@ -252,7 +263,8 @@ export function CartScreen({
         <CheckoutForm
           slug={slug}
           lines={lines}
-          total={total}
+          itemsTotal={total}
+          pricing={pricing}
           extras={extras}
           isMapOpen={step === "map"}
           onMapOpen={() => setStep("map")}
