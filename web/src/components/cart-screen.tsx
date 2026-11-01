@@ -1,7 +1,7 @@
 "use client";
 
 import type { MenuProduct } from "@cafe/db";
-import type { DeliveryPricing } from "@cafe/db/pricing";
+import type { DeliveryPricing, PromoTerms } from "@cafe/db/pricing";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { CheckoutForm } from "@/components/checkout-form";
@@ -14,7 +14,8 @@ import { formatPrice } from "@/lib/format";
 
 type Step = "cart" | "checkout" | "map";
 
-export type OrderExtras = { comment: string; cutleryCount: number };
+export type AppliedPromo = { code: string; terms: PromoTerms };
+export type OrderExtras = { comment: string; cutleryCount: number; promo: AppliedPromo | null };
 
 function askConfirm(message: string, onConfirmed: () => void) {
   const webApp = window.Telegram?.WebApp;
@@ -35,6 +36,8 @@ export function CartScreen({
   lines,
   total,
   pricing,
+  cafeAddress,
+  closedNotice,
   soldOutNames,
   suggestions,
   extras,
@@ -51,6 +54,8 @@ export function CartScreen({
   lines: { product: MenuProduct; quantity: number }[];
   total: number;
   pricing: DeliveryPricing;
+  cafeAddress: string | null;
+  closedNotice: string | null;
   soldOutNames: string[];
   suggestions: MenuProduct[];
   extras: OrderExtras;
@@ -149,6 +154,11 @@ export function CartScreen({
       {step === "cart" ? (
         <>
           <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pb-24 pt-2">
+            {closedNotice && (
+              <p role="status" className="rounded-3xl bg-background p-4 text-sm font-medium">
+                🔒 {closedNotice}
+              </p>
+            )}
             <section aria-label="Savatdagi taomlar" className="rounded-3xl bg-background px-4">
               {soldOutNames.length > 0 && (
                 <p role="status" className="pt-3 text-sm text-destructive">
@@ -248,7 +258,7 @@ export function CartScreen({
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
-              disabled={lines.length === 0}
+              disabled={lines.length === 0 || closedNotice !== null}
               onClick={() => setStep("checkout")}
               className="pointer-events-auto flex items-center gap-3 rounded-full bg-button py-3 pl-6 pr-3 text-lg font-bold text-button-text shadow-lg disabled:opacity-50"
             >
@@ -265,7 +275,9 @@ export function CartScreen({
           lines={lines}
           itemsTotal={total}
           pricing={pricing}
+          cafeAddress={cafeAddress}
           extras={extras}
+          onExtrasChange={onExtrasChange}
           isMapOpen={step === "map"}
           onMapOpen={() => setStep("map")}
           onMapClose={() => setStep("checkout")}

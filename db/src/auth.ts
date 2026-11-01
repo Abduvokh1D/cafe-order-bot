@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from "node:crypto";
-import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lt, ne, sql } from "drizzle-orm";
 import { getDb } from "./index.ts";
 import { admins, adminSessions, cafes } from "./schema.ts";
 
@@ -50,7 +50,7 @@ export async function loginAdmin(login: string, password: string): Promise<Login
   const db = getDb();
   const [admin] = await db.select().from(admins).where(eq(admins.login, normalizeLogin(login)));
 
-  if (!admin) {
+  if (!admin || !admin.isActive) {
     // Javob vaqtidan login mavjudligini bilib bo'lmasligi uchun parol baribir hisoblanadi
     await hashPassword(password);
     return { status: "invalid" };
@@ -85,9 +85,12 @@ export async function loginAdmin(login: string, password: string): Promise<Login
   return { status: "ok", token, expiresAt };
 }
 
+export type AdminRole = "owner" | "manager" | "staff";
+
 export type AdminSession = {
   adminId: number;
   login: string;
+  role: AdminRole;
   cafeId: number;
   cafeName: string;
   cafeSlug: string;
@@ -98,6 +101,7 @@ export async function getAdminSession(token: string): Promise<AdminSession | nul
     .select({
       adminId: admins.id,
       login: admins.login,
+      role: admins.role,
       cafeId: cafes.id,
       cafeName: cafes.name,
       cafeSlug: cafes.slug,
@@ -106,7 +110,13 @@ export async function getAdminSession(token: string): Promise<AdminSession | nul
     .innerJoin(admins, eq(admins.id, adminSessions.adminId))
     .innerJoin(cafes, eq(cafes.id, admins.cafeId))
     // Vaqt bazada solishtiriladi: Next.js oldindan render paytida new Date() ni rad etadi
-    .where(and(eq(adminSessions.tokenHash, hashToken(token)), gt(adminSessions.expiresAt, sql`now()`)));
+    .where(
+      and(
+        eq(adminSessions.tokenHash, hashToken(token)),
+        gt(adminSessions.expiresAt, sql`now()`),
+        eq(admins.isActive, true),
+      ),
+    );
   return session ?? null;
 }
 
@@ -129,7 +139,7 @@ export async function saveAdmin(slug: string, login: string, password: string) {
     if (existing) {
       await tx
         .update(admins)
-        .set({ passwordHash, failedAttempts: 0, lockedUntil: null })
+        .set({ passwordHash, failedAttempts: 0, lockedUntil: null, isActive: true })
         .where(eq(admins.id, existing.id));
       await tx.delete(adminSessions).where(eq(adminSessions.adminId, existing.id));
     } else {
@@ -137,4 +147,71 @@ export async function saveAdmin(slug: string, login: string, password: string) {
     }
   });
   return existing ? ("updated" as const) : ("created" as const);
+}
+
+export type StaffMember = { id: number; login: string; role: AdminRole; isActive: boolean };
+
+export async function listStaff(cafeId: number): Promise<StaffMember[]> {
+  return getDb()
+    .select({ id: admins.id, login: admins.login, role: admins.role, isActive: admins.isActive })
+    .from(admins)
+    .where(eq(admins.cafeId, cafeId))
+    .orderBy(asc(admins.id));
+}
+
+/** Login butun tizimda bitta: boshqa kafeda band bo'lsa ham false qaytaradi. */
+export async function createStaff(cafeId: number, login: string, password: string, role: AdminRole) {
+  const db = getDb();
+  const name = normalizeLogin(login);
+  const [existing] = await db.select({ id: admins.id }).from(admins).where(eq(admins.login, name));
+  if (existing) return false;
+  await db.insert(admins).values({ cafeId, login: name, role, passwordHash: await hashPassword(password) });
+  return true;
+}
+
+export async function setStaffRole(cafeId: number, adminId: number, role: AdminRole) {
+  await getDb()
+    .update(admins)
+    .set({ role })
+    .where(and(eq(admins.cafeId, cafeId), eq(admins.id, adminId)));
+}
+
+/** Ishdan ketgan xodim darhol chiqariladi. */
+export async function setStaffActive(cafeId: number, adminId: number, isActive: boolean) {
+  await getDb().transaction(async (tx) => {
+    const rows = await tx
+      .update(admins)
+      .set({ isActive, failedAttempts: 0, lockedUntil: null })
+      .where(and(eq(admins.cafeId, cafeId), eq(admins.id, adminId)))
+      .returning({ id: admins.id });
+    if (rows.length > 0 && !isActive) await tx.delete(adminSessions).where(eq(adminSessions.adminId, adminId));
+  });
+}
+
+export async function resetStaffPassword(cafeId: number, adminId: number, password: string) {
+  const passwordHash = await hashPassword(password);
+  await getDb().transaction(async (tx) => {
+    const rows = await tx
+      .update(admins)
+      .set({ passwordHash, failedAttempts: 0, lockedUntil: null })
+      .where(and(eq(admins.cafeId, cafeId), eq(admins.id, adminId)))
+      .returning({ id: admins.id });
+    if (rows.length > 0) await tx.delete(adminSessions).where(eq(adminSessions.adminId, adminId));
+  });
+}
+
+/** Joriy parol to'g'ri bo'lsa almashtiradi. Boshqa qurilmalardagi sessiyalar yopiladi, joriysi qoladi. */
+export async function changeOwnPassword(adminId: number, currentToken: string, current: string, next: string) {
+  const db = getDb();
+  const [admin] = await db.select({ passwordHash: admins.passwordHash }).from(admins).where(eq(admins.id, adminId));
+  if (!admin || !(await verifyPassword(current, admin.passwordHash))) return false;
+
+  const passwordHash = await hashPassword(next);
+  await db.transaction(async (tx) => {
+    await tx.update(admins).set({ passwordHash }).where(eq(admins.id, adminId));
+    await tx
+      .delete(adminSessions)
+      .where(and(eq(adminSessions.adminId, adminId), ne(adminSessions.tokenHash, hashToken(currentToken))));
+  });
+  return true;
 }

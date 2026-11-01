@@ -1,10 +1,12 @@
 import { getCafeForOrder, placeOrder, type OrderType, type PaymentMethod } from "@cafe/db";
 import { MAX_COMMENT_LENGTH, MAX_CUTLERY, MAX_QUANTITY } from "@/lib/cart-limits";
+import { TIME_ZONE } from "@/lib/day";
 import { formatStaffMessage, sendStaffMessage } from "@/lib/staff-notify";
 import { verifyInitData } from "@/lib/telegram-auth";
 
 const MAX_LINES = 50;
 const MAX_ADDRESS_LENGTH = 500;
+const MAX_PROMO_CODE_LENGTH = 30;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type OrderRequest = {
@@ -19,6 +21,7 @@ type OrderRequest = {
   longitude: number | null;
   comment: string | null;
   cutleryCount: number;
+  promoCode: string | null;
   items: { productId: number; quantity: number }[];
   expectedTotal: number;
 };
@@ -66,6 +69,9 @@ function parseRequest(body: unknown): OrderRequest | null {
     return null;
   }
 
+  const promoCode = typeof data.promoCode === "string" ? data.promoCode.trim() : "";
+  if (promoCode.length > MAX_PROMO_CODE_LENGTH) return null;
+
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_LINES) return null;
   const seen = new Set<number>();
   for (const item of items as { productId?: unknown; quantity?: unknown }[]) {
@@ -89,6 +95,7 @@ function parseRequest(body: unknown): OrderRequest | null {
     longitude: type === "delivery" && hasLocation ? (data.longitude as number) : null,
     comment: comment || null,
     cutleryCount: cutleryCount as number,
+    promoCode: promoCode || null,
     items: items as OrderRequest["items"],
     expectedTotal: expectedTotal as number,
   };
@@ -129,6 +136,8 @@ export async function POST(request: Request) {
         longitude: input.longitude,
         comment: input.comment,
         cutleryCount: input.cutleryCount,
+        promoCode: input.promoCode,
+        timeZone: TIME_ZONE,
         items: input.items,
         expectedTotal: input.expectedTotal,
       },
@@ -156,6 +165,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "unavailable", productNames: result.productNames }, { status: 409 });
     }
     if (result.status === "price_changed") return fail(409, "price_changed");
+    if (result.status === "closed") return fail(409, "closed");
+    if (result.status === "promo_rejected") {
+      return Response.json({ error: "promo_rejected", reason: result.reason }, { status: 409 });
+    }
     return Response.json({ orderId: result.orderId, totalAmount: result.totalAmount });
   } catch (error) {
     // Xabar ketib, saqlash xato bersa, xodimlar saqlanmagan buyurtmani ko'radi: buni logda ajratamiz

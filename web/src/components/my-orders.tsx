@@ -45,11 +45,15 @@ function refreshOrders(slug: string, setState: Dispatch<SetStateAction<LoadState
 /** Holatni xodimlar o'zgartiradi: ochiq turganda va ilovaga qaytganda qayta yuklanadi. */
 export function MyOrders({
   slug,
+  cafePhone,
+  cafeAddress,
   deliveryMinMinutes,
   deliveryMaxMinutes,
   initialOrderId,
 }: {
   slug: string;
+  cafePhone: string | null;
+  cafeAddress: string | null;
   deliveryMinMinutes: number | null;
   deliveryMaxMinutes: number | null;
   /** Buyurtma berilgandan keyin to'g'ri kuzatish sahifasi ochiladi */
@@ -131,6 +135,8 @@ export function MyOrders({
       {openOrder && state.status === "ready" && (
         <OrderTracker
           order={openOrder}
+          cafePhone={cafePhone}
+          cafeAddress={cafeAddress}
           checkedAt={state.checkedAt}
           deliveryMinMinutes={deliveryMinMinutes}
           deliveryMaxMinutes={deliveryMaxMinutes}

@@ -54,7 +54,7 @@ function customerMessage(order: StaffOrder) {
     case "preparing":
       return `👨‍🍳 ${name} tayyorlanmoqda.`;
     case "ready":
-      return `🛍 ${name} tayyor, olib ketishingiz mumkin.`;
+      return `🛍 ${name} tayyor, olib ketishingiz mumkin.${order.cafeAddress ? `\n📍 ${order.cafeAddress}` : ""}`;
     case "on_the_way":
       return `🚗 ${name} yo'lda.`;
     case "delivered":
@@ -62,7 +62,7 @@ function customerMessage(order: StaffOrder) {
         ? `🎉 ${name} yetkazildi. Yoqimli ishtaha!`
         : `🎉 ${name} topshirildi. Yoqimli ishtaha!`;
     case "cancelled":
-      return `❌ ${name} bekor qilindi. Savolingiz bo'lsa, kafega murojaat qiling.`;
+      return `❌ ${name} bekor qilindi. Savolingiz bo'lsa, kafega murojaat qiling${order.cafePhone ? `: ${order.cafePhone}` : "."}`;
     default:
       return null;
   }

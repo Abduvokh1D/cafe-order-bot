@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   doublePrecision,
   foreignKey,
   index,
@@ -12,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -45,6 +47,11 @@ export const orderType = pgEnum("order_type", ["delivery", "pickup"]);
 // Mijoz buyurtmani olganda to'laydi: naqd yoki karta bilan. Onlayn to'lov hali yo'q
 export const paymentMethod = pgEnum("payment_method", ["cash", "card"]);
 
+// owner: hammasi. manager: xodimlardan boshqa hammasi. staff: buyurtmalar va "tugadi" belgisi
+export const adminRole = pgEnum("admin_role", ["owner", "manager", "staff"]);
+
+export const promoType = pgEnum("promo_type", ["percent", "fixed"]);
+
 export const cafes = pgTable(
   "cafes",
   {
@@ -61,9 +68,19 @@ export const cafes = pgTable(
     // So'mda. null: kiritilmagan, 0: bepul. Hisob qoidasi pricing.ts da
     deliveryFee: integer("delivery_fee"),
     freeDeliveryFrom: integer("free_delivery_from"),
+    phone: text("phone"),
+    address: text("address"),
+    // Kafe buyurtma qabul qilishni qo'lda to'xtatadi. Ish vaqti hisobi hours.ts da
+    isAcceptingOrders: boolean("is_accepting_orders").notNull().default(true),
+    opensAtMinutes: integer("opens_at_minutes"),
+    closesAtMinutes: integer("closes_at_minutes"),
     createdAt: createdAt(),
   },
   (t) => [
+    check(
+      "cafes_hours_check",
+      sql`(${t.opensAtMinutes} IS NULL AND ${t.closesAtMinutes} IS NULL) OR (${t.opensAtMinutes} BETWEEN 0 AND 1439 AND ${t.closesAtMinutes} BETWEEN 0 AND 1439 AND ${t.opensAtMinutes} <> ${t.closesAtMinutes})`,
+    ),
     check("cafes_delivery_fee_check", sql`${t.deliveryFee} >= 0`),
     check("cafes_free_delivery_from_check", sql`${t.freeDeliveryFrom} > 0`),
     check(
@@ -78,6 +95,9 @@ export const admins = pgTable("admins", {
   cafeId: cafeId(),
   login: text("login").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  role: adminRole("role").notNull().default("owner"),
+  // O'chirish o'rniga: ishdan ketgan xodim kira olmaydi
+  isActive: boolean("is_active").notNull().default(true),
   failedAttempts: integer("failed_attempts").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   createdAt: createdAt(),
@@ -149,6 +169,38 @@ export const products = pgTable(
   ],
 );
 
+export const promoCodes = pgTable(
+  "promo_codes",
+  {
+    id: id(),
+    cafeId: cafeId(),
+    code: text("code").notNull(),
+    type: promoType("type").notNull(),
+    // percent: 1–100, fixed: so'mda
+    value: integer("value").notNull(),
+    minOrderAmount: integer("min_order_amount").notNull().default(0),
+    // null: cheklanmagan
+    maxUses: integer("max_uses"),
+    isOncePerCustomer: boolean("is_once_per_customer").notNull().default(true),
+    // Shu kun oxirigacha amal qiladi; null: muddatsiz
+    expiresOn: date("expires_on"),
+    isActive: boolean("is_active").notNull().default(true),
+    // O'chirish o'rniga: eski buyurtmalar unga bog'langan
+    isArchived: boolean("is_archived").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("promo_codes_cafe_id_id_unique").on(t.cafeId, t.id),
+    uniqueIndex("promo_codes_cafe_code_unique").on(t.cafeId, t.code).where(sql`NOT ${t.isArchived}`),
+    check(
+      "promo_codes_value_check",
+      sql`${t.value} > 0 AND (${t.type} <> 'percent' OR ${t.value} <= 100)`,
+    ),
+    check("promo_codes_min_order_check", sql`${t.minOrderAmount} >= 0`),
+    check("promo_codes_max_uses_check", sql`${t.maxUses} > 0`),
+  ],
+);
+
 export const customers = pgTable(
   "customers",
   {
@@ -190,6 +242,10 @@ export const orders = pgTable(
     cutleryCount: integer("cutlery_count").notNull().default(0),
     // Buyurtma paytidagi narx: kafe keyin o'zgartirsa ham eski buyurtma o'zgarmaydi. Jamiga kiradi
     deliveryFee: integer("delivery_fee").notNull().default(0),
+    promoCodeId: integer("promo_code_id"),
+    // Buyurtma paytidagi kod va chegirma: promokod keyin o'zgarsa ham eski buyurtma o'zgarmaydi
+    promoCode: text("promo_code"),
+    discountAmount: integer("discount_amount").notNull().default(0),
     totalAmount: integer("total_amount").notNull(),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -205,6 +261,12 @@ export const orders = pgTable(
       columns: [t.cafeId, t.customerId],
       foreignColumns: [customers.cafeId, customers.id],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "orders_promo_code_fk",
+      columns: [t.cafeId, t.promoCodeId],
+      foreignColumns: [promoCodes.cafeId, promoCodes.id],
+    }).onDelete("restrict"),
+    check("orders_discount_amount_check", sql`${t.discountAmount} >= 0`),
     check("orders_total_amount_check", sql`${t.totalAmount} >= 0`),
     check("orders_cutlery_count_check", sql`${t.cutleryCount} >= 0`),
     check("orders_delivery_fee_check", sql`${t.deliveryFee} >= 0`),

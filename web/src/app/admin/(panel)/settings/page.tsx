@@ -1,10 +1,13 @@
 import { getAdminSettings, type AdminBanner } from "@cafe/db";
+import { formatMinutes } from "@cafe/db/hours";
 import Image from "next/image";
 import { Suspense } from "react";
 import {
   createBannerAction,
   deleteBannerAction,
   setBannerActiveAction,
+  setCafeContactsAction,
+  setCafeHoursAction,
   setDeliveryPriceAction,
   setDeliveryTimeAction,
 } from "@/app/admin/actions";
@@ -25,12 +28,72 @@ export default function SettingsPage() {
 }
 
 async function SettingsEditor() {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("settings");
   const settings = await getAdminSettings(admin.cafeId);
 
   return (
     <>
       <h1 className="text-lg font-semibold">Sozlamalar</h1>
+
+      <section aria-label="Kafe aloqasi" className="flex flex-col gap-3 rounded-2xl bg-section p-4">
+        <div>
+          <h2 className="font-semibold">Kafe aloqasi</h2>
+          <p className="text-sm text-hint">Mijoz menyuda ko&apos;radi va buyurtma bo&apos;yicha qo&apos;ng&apos;iroq qila oladi.</p>
+        </div>
+        <AdminForm action={setCafeContactsAction} showSaved className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Telefon
+            <input
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              defaultValue={settings.phone ?? ""}
+              placeholder="+998 90 123 45 67"
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Manzil
+            <input name="address" maxLength={300} defaultValue={settings.address ?? ""} placeholder="Ko'cha, uy, mo'ljal" className={inputClass} />
+          </label>
+          <button type="submit" className={`${primaryButton} self-start`}>
+            Saqlash
+          </button>
+        </AdminForm>
+      </section>
+
+      <section aria-label="Ish vaqti" className="flex flex-col gap-3 rounded-2xl bg-section p-4">
+        <div>
+          <h2 className="font-semibold">Ish vaqti</h2>
+          <p className="text-sm text-hint">
+            Shu vaqtdan tashqari mijoz menyuni ko&apos;radi, lekin buyurtma bera olmaydi. Bo&apos;sh qoldirsangiz, kafe doim
+            ochiq hisoblanadi. Yarim tundan o&apos;tsa ham bo&apos;ladi, masalan 18:00 dan 02:00 gacha.
+          </p>
+        </div>
+        <AdminForm action={setCafeHoursAction} showSaved className="flex flex-wrap items-end gap-3">
+          <label className="flex w-32 flex-col gap-1 text-sm font-medium">
+            Ochiladi
+            <input
+              name="opensAt"
+              type="time"
+              defaultValue={settings.opensAtMinutes === null ? "" : formatMinutes(settings.opensAtMinutes)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex w-32 flex-col gap-1 text-sm font-medium">
+            Yopiladi
+            <input
+              name="closesAt"
+              type="time"
+              defaultValue={settings.closesAtMinutes === null ? "" : formatMinutes(settings.closesAtMinutes)}
+              className={inputClass}
+            />
+          </label>
+          <button type="submit" className={primaryButton}>
+            Saqlash
+          </button>
+        </AdminForm>
+      </section>
 
       <section aria-label="Chegirma rasmlari" className="flex flex-col gap-3 rounded-2xl bg-section p-4">
         <div>

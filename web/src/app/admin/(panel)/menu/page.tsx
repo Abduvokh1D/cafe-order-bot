@@ -6,6 +6,8 @@ import {
   archiveProductAction,
   createCategoryAction,
   createProductAction,
+  moveCategoryAction,
+  moveProductAction,
   renameCategoryAction,
   setAvailabilityAction,
   updateProductAction,
@@ -13,7 +15,9 @@ import {
 import { AdminForm } from "@/components/admin/admin-form";
 import { ProductImageInput } from "@/components/admin/product-image-input";
 import { requireAdmin } from "@/lib/admin-session";
+import type { FormState } from "@/lib/form-state";
 import { formatPrice } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 
 const inputClass = "w-full rounded-xl bg-secondary px-3 py-2 text-base font-normal outline-none";
 const primaryButton = "rounded-xl bg-button px-4 py-2 text-sm font-medium text-button-text disabled:opacity-50";
@@ -30,16 +34,25 @@ export default function MenuPage() {
 async function MenuEditor() {
   const admin = await requireAdmin();
   const categories = await getAdminMenu(admin.cafeId);
+  // Xodim faqat "tugadi" belgisini o'zgartiradi, amallarning o'zi ham serverda tekshiriladi
+  const canEdit = hasPermission(admin.role, "menu");
 
   return (
     <>
       <h1 className="text-lg font-semibold">Menyu</h1>
 
-      {categories.map((category) => (
-        <CategorySection key={category.id} category={category} categories={categories} />
+      {categories.map((category, index) => (
+        <CategorySection
+          key={category.id}
+          category={category}
+          categories={categories}
+          canEdit={canEdit}
+          isFirst={index === 0}
+          isLast={index === categories.length - 1}
+        />
       ))}
 
-      <section className="rounded-2xl bg-section p-4">
+      {canEdit && <section className="rounded-2xl bg-section p-4">
         <h2 className="pb-2 font-semibold">Yangi kategoriya</h2>
         <AdminForm action={createCategoryAction} resetOnSuccess className="flex flex-wrap gap-2">
           <input
@@ -54,22 +67,63 @@ async function MenuEditor() {
             Qo&apos;shish
           </button>
         </AdminForm>
-      </section>
+      </section>}
     </>
+  );
+}
+
+function MoveButtons({
+  id,
+  name,
+  action,
+  isFirst,
+  isLast,
+}: {
+  id: number;
+  name: string;
+  action: (state: FormState, formData: FormData) => Promise<FormState>;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  const buttonClass = "flex size-9 items-center justify-center rounded-lg bg-secondary text-sm font-medium disabled:opacity-30";
+  return (
+    <div className="flex shrink-0 gap-1">
+      <AdminForm action={action} className="flex flex-col">
+        <input type="hidden" name="id" value={id} />
+        <input type="hidden" name="direction" value="up" />
+        <button type="submit" disabled={isFirst} aria-label={`${name}ni yuqoriga`} className={buttonClass}>
+          ↑
+        </button>
+      </AdminForm>
+      <AdminForm action={action} className="flex flex-col">
+        <input type="hidden" name="id" value={id} />
+        <input type="hidden" name="direction" value="down" />
+        <button type="submit" disabled={isLast} aria-label={`${name}ni pastga`} className={buttonClass}>
+          ↓
+        </button>
+      </AdminForm>
+    </div>
   );
 }
 
 function CategorySection({
   category,
   categories,
+  canEdit,
+  isFirst,
+  isLast,
 }: {
   category: AdminCategory;
   categories: AdminCategory[];
+  canEdit: boolean;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   return (
     <section aria-label={category.name} className="flex flex-col gap-3 rounded-2xl bg-section p-4">
-      <div className="flex flex-wrap items-start gap-2">
-        <AdminForm action={renameCategoryAction} showSaved className="flex min-w-0 flex-1 flex-wrap gap-2">
+      {!canEdit && <h2 className="font-semibold">{category.name}</h2>}
+      {canEdit && <div className="flex flex-wrap items-center gap-2">
+        <AdminForm action={renameCategoryAction} showSaved className="flex w-full flex-wrap gap-2">
           <input type="hidden" name="id" value={category.id} />
           <input
             name="name"
@@ -83,31 +137,39 @@ function CategorySection({
             Saqlash
           </button>
         </AdminForm>
+        <MoveButtons id={category.id} name={category.name} action={moveCategoryAction} isFirst={isFirst} isLast={isLast} />
         <AdminForm
           action={archiveCategoryAction}
           confirmMessage={`"${category.name}" kategoriyasi o'chirilsinmi?`}
-          className="flex flex-wrap gap-2"
+          className="ml-auto flex flex-wrap justify-end gap-2"
         >
           <input type="hidden" name="id" value={category.id} />
           <button type="submit" className={`${secondaryButton} text-destructive`}>
             O&apos;chirish
           </button>
         </AdminForm>
-      </div>
+      </div>}
 
       {category.products.length === 0 ? (
         <p className="text-sm text-hint">Bu kategoriyada taom yo&apos;q.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-secondary">
-          {category.products.map((product) => (
+          {category.products.map((product, index) => (
             <li key={product.id} className="py-3 first:pt-0">
-              <ProductRow product={product} categoryId={category.id} categories={categories} />
+              <ProductRow
+                product={product}
+                categoryId={category.id}
+                categories={categories}
+                canEdit={canEdit}
+                isFirst={index === 0}
+                isLast={index === category.products.length - 1}
+              />
             </li>
           ))}
         </ul>
       )}
 
-      <details className="rounded-xl border border-secondary p-3">
+      {canEdit && <details className="rounded-xl border border-secondary p-3">
         <summary className="cursor-pointer text-sm font-medium">+ Taom qo&apos;shish</summary>
         <AdminForm action={createProductAction} resetOnSuccess showSaved className="flex flex-col gap-3 pt-3">
           <ProductFields categoryId={category.id} categories={categories} />
@@ -115,7 +177,7 @@ function CategorySection({
             Qo&apos;shish
           </button>
         </AdminForm>
-      </details>
+      </details>}
     </section>
   );
 }
@@ -124,10 +186,16 @@ function ProductRow({
   product,
   categoryId,
   categories,
+  canEdit,
+  isFirst,
+  isLast,
 }: {
   product: MenuProduct;
   categoryId: number;
   categories: AdminCategory[];
+  canEdit: boolean;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -161,9 +229,10 @@ function ProductRow({
             {product.isAvailable ? "Mavjud" : "Tugadi"}
           </button>
         </AdminForm>
+        {canEdit && <MoveButtons id={product.id} name={product.name} action={moveProductAction} isFirst={isFirst} isLast={isLast} />}
       </div>
 
-      <details>
+      {canEdit && <details>
         <summary className="cursor-pointer text-sm text-hint">Tahrirlash</summary>
         <AdminForm action={updateProductAction} resetOnSuccess showSaved className="flex flex-col gap-3 pt-3">
           <input type="hidden" name="id" value={product.id} />
@@ -182,7 +251,7 @@ function ProductRow({
             Menyudan o&apos;chirish
           </button>
         </AdminForm>
-      </details>
+      </details>}
     </div>
   );
 }

@@ -17,14 +17,14 @@ type Tab = "menu" | "orders";
 // Bo'lim sarlavhasi kategoriya tugmalari ostida to'xtaydi (scroll-mt-14 = 56px)
 const TABS_OFFSET_PX = 57;
 const SUGGESTIONS_LIMIT = 6;
-const NO_EXTRAS: OrderExtras = { comment: "", cutleryCount: 0 };
+const NO_EXTRAS: OrderExtras = { comment: "", cutleryCount: 0, promo: null };
 
 // "Lag'mon", "lagʻmon" va "lagmon" bir xil topilishi uchun tutuq belgilari olib tashlanadi
 function normalize(text: string) {
   return text.toLowerCase().replace(/['`ʻʼ‘’]/g, "").trim();
 }
 
-export function MenuView({ menu }: { menu: CafeMenu }) {
+export function MenuView({ menu, closedNotice }: { menu: CafeMenu; closedNotice: string | null }) {
   const { slug } = menu.cafe;
   const router = useRouter();
   const cart = useCart(slug);
@@ -102,6 +102,8 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
       {tab === "orders" ? (
         <MyOrders
           slug={slug}
+          cafePhone={menu.cafe.phone}
+          cafeAddress={menu.cafe.address}
           deliveryMinMinutes={minMinutes}
           deliveryMaxMinutes={maxMinutes}
           initialOrderId={trackedOrderId}
@@ -109,7 +111,24 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
       ) : (
         <>
           <header className="flex flex-col gap-3 px-4 pt-4">
-            <h1 className="text-2xl font-bold tracking-tight">{menu.cafe.name}</h1>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{menu.cafe.name}</h1>
+              {(menu.cafe.address || menu.cafe.phone) && (
+                <p className="flex flex-wrap gap-x-3 pt-0.5 text-sm text-hint">
+                  {menu.cafe.address && <span>📍 {menu.cafe.address}</span>}
+                  {menu.cafe.phone && (
+                    <a href={`tel:${menu.cafe.phone.replace(/[^\d+]/g, "")}`} className="underline">
+                      📞 {menu.cafe.phone}
+                    </a>
+                  )}
+                </p>
+              )}
+            </div>
+            {closedNotice && (
+              <p role="status" className="rounded-2xl bg-secondary px-4 py-3 text-sm font-medium">
+                🔒 {closedNotice}
+              </p>
+            )}
             <SearchBox value={search} onChange={setSearch} />
           </header>
 
@@ -200,6 +219,8 @@ export function MenuView({ menu }: { menu: CafeMenu }) {
           lines={lines}
           total={total}
           pricing={menu.cafe}
+          cafeAddress={menu.cafe.address}
+          closedNotice={closedNotice}
           soldOutNames={soldOutNames}
           suggestions={suggestions}
           extras={extras}

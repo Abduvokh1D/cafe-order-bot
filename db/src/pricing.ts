@@ -15,3 +15,11 @@ export function getDeliveryFee(type: OrderType, itemsTotal: number, pricing: Del
   const isFree = pricing.freeDeliveryFrom !== null && itemsTotal >= pricing.freeDeliveryFrom;
   return isFree ? 0 : pricing.deliveryFee;
 }
+
+export type PromoTerms = { type: "percent" | "fixed"; value: number; minOrderAmount: number };
+
+/** Chegirma faqat taomlarga, yetkazish narxiga emas. Bepul yetkazish chegarasi chegirmagacha hisoblanadi. */
+export function getPromoDiscount(terms: PromoTerms, itemsTotal: number) {
+  if (itemsTotal < terms.minOrderAmount) return 0;
+  return terms.type === "percent" ? Math.floor((itemsTotal * terms.value) / 100) : Math.min(terms.value, itemsTotal);
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { MenuProduct, OrderType, PaymentMethod } from "@cafe/db";
-import { getDeliveryFee, type DeliveryPricing } from "@cafe/db/pricing";
+import { getDeliveryFee, getPromoDiscount, type DeliveryPricing, type PromoTerms } from "@cafe/db/pricing";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import type { OrderExtras } from "@/components/cart-screen";
@@ -40,7 +40,17 @@ const ERROR_MESSAGES: Record<string, string> = {
   cafe_not_found: "Kafe topilmadi.",
   invalid_request: "Ma'lumotlarni tekshirib, qayta yuboring.",
   price_changed: "Narxlar yangilandi. Jamini tekshirib, qayta yuboring.",
+  closed: "Kafe hozir buyurtma qabul qilmayapti. Birozdan keyin urinib ko'ring.",
 };
+const PROMO_ERRORS: Record<string, string> = {
+  not_found: "Bunday promokod yo'q.",
+  expired: "Promokod muddati tugagan.",
+  limit_reached: "Promokod tugagan.",
+  already_used: "Siz bu promokodni ishlatib bo'lgansiz.",
+  min_order: "Buyurtma summasi bu promokod uchun yetarli emas.",
+  invalid_signature: "Sessiya eskirgan. Mini App'ni yopib, bot orqali qayta oching.",
+};
+
 const DEFAULT_ERROR = "Buyurtma yuborilmadi. Internetni tekshirib, qayta urinib ko'ring.";
 
 export function CheckoutForm({
@@ -48,7 +58,9 @@ export function CheckoutForm({
   lines,
   itemsTotal,
   pricing,
+  cafeAddress,
   extras,
+  onExtrasChange,
   isMapOpen,
   onMapOpen,
   onMapClose,
@@ -58,7 +70,9 @@ export function CheckoutForm({
   lines: { product: MenuProduct; quantity: number }[];
   itemsTotal: number;
   pricing: DeliveryPricing;
+  cafeAddress: string | null;
   extras: OrderExtras;
+  onExtrasChange: (extras: OrderExtras) => void;
   isMapOpen: boolean;
   onMapOpen: () => void;
   onMapClose: () => void;
@@ -77,8 +91,39 @@ export function CheckoutForm({
   const [invalidField, setInvalidField] = useState<"phone" | "address" | null>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const addressRef = useRef<HTMLDivElement>(null);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [isCheckingPromo, setIsCheckingPromo] = useState(false);
   const deliveryFee = getDeliveryFee(type, itemsTotal, pricing);
-  const total = itemsTotal + deliveryFee;
+  // Savat kamayib eng kam summadan tushsa, chegirma 0 bo'ladi va kod yuborilmaydi
+  const discount = extras.promo ? getPromoDiscount(extras.promo.terms, itemsTotal) : 0;
+  const total = itemsTotal - discount + deliveryFee;
+
+  async function applyPromo() {
+    const code = promoInput.trim();
+    if (!code || isCheckingPromo) return;
+    setIsCheckingPromo(true);
+    setPromoError(null);
+    try {
+      const response = await fetch("/api/promo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cafeSlug: slug, initData: window.Telegram?.WebApp.initData ?? "", code }),
+      });
+      const data = (await response.json()) as { code?: string; terms?: PromoTerms; error?: string };
+      if (response.ok && data.code && data.terms) {
+        onExtrasChange({ ...extras, promo: { code: data.code, terms: data.terms } });
+        setPromoInput("");
+        clearError();
+      } else {
+        setPromoError(PROMO_ERRORS[data.error ?? ""] ?? "Promokodni tekshirib bo'lmadi. Qayta urinib ko'ring.");
+      }
+    } catch {
+      setPromoError("Promokodni tekshirib bo'lmadi. Qayta urinib ko'ring.");
+    } finally {
+      setIsCheckingPromo(false);
+    }
+  }
 
   function clearError() {
     setError(null);
@@ -122,6 +167,7 @@ export function CheckoutForm({
           longitude: isDelivery ? (location?.longitude ?? null) : null,
           comment: extras.comment,
           cutleryCount: extras.cutleryCount,
+          promoCode: discount > 0 && extras.promo ? extras.promo.code : null,
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
           expectedTotal: total,
         }),
@@ -130,6 +176,7 @@ export function CheckoutForm({
         orderId?: number;
         error?: string;
         productNames?: string[];
+        reason?: string;
       };
 
       if (response.ok && data.orderId) {
@@ -139,13 +186,17 @@ export function CheckoutForm({
         return;
       }
 
-      if (data.error === "unavailable") {
+      if (data.error === "promo_rejected") {
+        // Promokod olib tashlanadi: mijoz yangi summani ko'rib, qayta tasdiqlaydi
+        onExtrasChange({ ...extras, promo: null });
+        setError(`${PROMO_ERRORS[data.reason ?? ""] ?? "Promokod qo'llanmadi."} Jamini tekshirib, qayta yuboring.`);
+      } else if (data.error === "unavailable") {
         const names = data.productNames?.join(", ");
         setError(`Tugagan taomlar bor${names ? `: ${names}` : ""}. Savatni tekshirib, qayta yuboring.`);
         router.refresh();
       } else {
         setError(ERROR_MESSAGES[data.error ?? ""] ?? DEFAULT_ERROR);
-        if (data.error === "price_changed") router.refresh();
+        if (data.error === "price_changed" || data.error === "closed") router.refresh();
       }
     } catch {
       setError(DEFAULT_ERROR);
@@ -252,6 +303,63 @@ export function CheckoutForm({
               ? "To'lov buyurtmani olganingizda kuryerga qilinadi."
               : "To'lov buyurtmani olib ketayotganda kafeda qilinadi."}
           </p>
+          {type === "pickup" && cafeAddress && <p className="text-sm">📍 Olib ketish manzili: {cafeAddress}</p>}
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium">Promokod</h3>
+          {extras.promo ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary px-4 py-2.5">
+              <span className="min-w-0 truncate font-semibold tracking-wide">{extras.promo.code}</span>
+              <span className="flex shrink-0 items-center gap-3 text-sm">
+                {discount > 0 && <span className="font-medium">−{formatPrice(discount)}</span>}
+                <button type="button" onClick={() => onExtrasChange({ ...extras, promo: null })} className="text-hint underline">
+                  Olib tashlash
+                </button>
+              </span>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                value={promoInput}
+                onChange={(event) => {
+                  setPromoInput(event.target.value);
+                  setPromoError(null);
+                }}
+                onKeyDown={(event) => {
+                  // Enter buyurtmani yubormasin
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void applyPromo();
+                  }
+                }}
+                maxLength={30}
+                autoCapitalize="characters"
+                autoComplete="off"
+                aria-label="Promokod"
+                placeholder="Kodni kiriting"
+                className={`${inputClass} min-w-0 flex-1 text-base uppercase placeholder:normal-case`}
+              />
+              <button
+                type="button"
+                onClick={applyPromo}
+                disabled={isCheckingPromo || !promoInput.trim()}
+                className="shrink-0 rounded-xl bg-secondary px-4 text-sm font-medium disabled:opacity-50"
+              >
+                {isCheckingPromo ? "..." : "Qo'llash"}
+              </button>
+            </div>
+          )}
+          {promoError && (
+            <p role="alert" className="text-sm text-destructive">
+              {promoError}
+            </p>
+          )}
+          {extras.promo && discount === 0 && (
+            <p className="text-sm text-hint">
+              Bu promokod {formatPrice(extras.promo.terms.minOrderAmount)}dan boshlab ishlaydi.
+            </p>
+          )}
         </section>
 
         <section aria-label="Buyurtma tarkibi" className="flex flex-col gap-1 text-sm">
@@ -270,16 +378,24 @@ export function CheckoutForm({
       </div>
 
       <div className="flex flex-col gap-3 border-t border-secondary p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        {type === "delivery" && pricing.deliveryFee !== null && (
+        {((type === "delivery" && pricing.deliveryFee !== null) || discount > 0) && (
           <dl className="flex flex-col gap-1 text-sm text-hint">
             <div className="flex items-center justify-between">
               <dt>Taomlar</dt>
               <dd>{formatPrice(itemsTotal)}</dd>
             </div>
-            <div className="flex items-center justify-between">
-              <dt>Yetkazib berish</dt>
-              <dd>{deliveryFee > 0 ? formatPrice(deliveryFee) : "Bepul"}</dd>
-            </div>
+            {discount > 0 && (
+              <div className="flex items-center justify-between">
+                <dt>Chegirma</dt>
+                <dd>−{formatPrice(discount)}</dd>
+              </div>
+            )}
+            {type === "delivery" && pricing.deliveryFee !== null && (
+              <div className="flex items-center justify-between">
+                <dt>Yetkazib berish</dt>
+                <dd>{deliveryFee > 0 ? formatPrice(deliveryFee) : "Bepul"}</dd>
+              </div>
+            )}
           </dl>
         )}
         <div className="flex items-center justify-between font-semibold">

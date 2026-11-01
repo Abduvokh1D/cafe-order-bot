@@ -6,6 +6,8 @@ export { schema };
 export * from "./queries.ts";
 export * from "./auth.ts";
 export * from "./admin.ts";
+export * from "./promos.ts";
+export * from "./stats.ts";
 
 function createDb() {
   const url = process.env.DATABASE_URL;

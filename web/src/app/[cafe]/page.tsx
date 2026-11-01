@@ -1,7 +1,10 @@
 import { getCafeMenu } from "@cafe/db";
+import { formatMinutes, getCafeAvailability, minutesInTimeZone } from "@cafe/db/hours";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { MenuView } from "@/components/menu-view";
+import { TIME_ZONE } from "@/lib/day";
 
 export default function CafePage({ params }: PageProps<"/[cafe]">) {
   return (
@@ -16,7 +19,18 @@ async function CafeMenuLoader({ params }: { params: Promise<{ cafe: string }> })
   const { cafe } = await params;
   const menu = await getCafeMenu(cafe);
   if (!menu) notFound();
-  return <MenuView menu={menu} />;
+
+  // Ochiq-yopiqligi so'rov paytida hisoblanadi, oldindan render qilinmaydi
+  await connection();
+  const { cafe: info } = menu;
+  const availability = getCafeAvailability(info, minutesInTimeZone(new Date(), TIME_ZONE));
+  const closedNotice = availability.isOpen
+    ? null
+    : availability.reason === "paused"
+      ? "Kafe hozir buyurtma qabul qilmayapti. Birozdan keyin urinib ko'ring."
+      : `Hozir yopiqmiz. Ish vaqti: ${formatMinutes(info.opensAtMinutes!)}–${formatMinutes(info.closesAtMinutes!)}`;
+
+  return <MenuView menu={menu} closedNotice={closedNotice} />;
 }
 
 function MenuSkeleton() {

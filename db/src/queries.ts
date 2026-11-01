@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "./index.ts";
-import { getDeliveryFee } from "./pricing.ts";
+import { getCafeAvailability, minutesInTimeZone } from "./hours.ts";
+import { getDeliveryFee, getPromoDiscount } from "./pricing.ts";
+import { checkPromo, type PromoRejection } from "./promos.ts";
 import {
   banners,
   cafes,
@@ -36,6 +38,11 @@ export type CafeMenu = {
     deliveryMaxMinutes: number | null;
     deliveryFee: number | null;
     freeDeliveryFrom: number | null;
+    phone: string | null;
+    address: string | null;
+    isAcceptingOrders: boolean;
+    opensAtMinutes: number | null;
+    closesAtMinutes: number | null;
   };
   banners: { id: number; imageUrl: string }[];
   categories: MenuCategory[];
@@ -54,6 +61,11 @@ export async function getCafeMenu(slug: string): Promise<CafeMenu | null> {
       deliveryMaxMinutes: cafes.deliveryMaxMinutes,
       deliveryFee: cafes.deliveryFee,
       freeDeliveryFrom: cafes.freeDeliveryFrom,
+      phone: cafes.phone,
+      address: cafes.address,
+      isAcceptingOrders: cafes.isAcceptingOrders,
+      opensAtMinutes: cafes.opensAtMinutes,
+      closesAtMinutes: cafes.closesAtMinutes,
     })
     .from(cafes)
     .where(eq(cafes.slug, slug));
@@ -143,6 +155,8 @@ export type PlaceOrderInput = {
   longitude: number | null;
   comment: string | null;
   cutleryCount: number;
+  promoCode: string | null;
+  timeZone: string;
   items: { productId: number; quantity: number }[];
   /** Mijoz ekranda ko'rgan jami (yetkazish bilan): narx o'zgargan bo'lsa, buyurtma qabul qilinmaydi */
   expectedTotal: number;
@@ -151,6 +165,8 @@ export type PlaceOrderInput = {
 export type PlacedOrder = {
   orderId: number;
   deliveryFee: number;
+  promoCode: string | null;
+  discountAmount: number;
   totalAmount: number;
   lines: { name: string; unitPrice: number; quantity: number }[];
 };
@@ -158,7 +174,15 @@ export type PlacedOrder = {
 export type PlaceOrderResult =
   | { status: "created" | "duplicate"; orderId: number; totalAmount: number }
   | { status: "unavailable"; productNames: string[] }
-  | { status: "price_changed" };
+  | { status: "price_changed" }
+  | { status: "closed" }
+  | { status: "promo_rejected"; reason: PromoRejection | "min_order" };
+
+class PromoRejectedInTransaction extends Error {
+  constructor(readonly reason: PromoRejection) {
+    super(reason);
+  }
+}
 
 async function findOrderByRequest(cafeId: number, requestId: string) {
   const [order] = await getDb()
@@ -187,6 +211,20 @@ export async function placeOrder(
 
   const existing = await findOrderByRequest(cafeId, requestId);
   if (existing) return { status: "duplicate", ...existing };
+
+  const [cafe] = await db
+    .select({
+      deliveryFee: cafes.deliveryFee,
+      freeDeliveryFrom: cafes.freeDeliveryFrom,
+      isAcceptingOrders: cafes.isAcceptingOrders,
+      opensAtMinutes: cafes.opensAtMinutes,
+      closesAtMinutes: cafes.closesAtMinutes,
+    })
+    .from(cafes)
+    .where(eq(cafes.id, cafeId));
+  if (!getCafeAvailability(cafe, minutesInTimeZone(new Date(), input.timeZone)).isOpen) {
+    return { status: "closed" };
+  }
 
   const productRows = await db
     .select({
@@ -223,17 +261,35 @@ export async function placeOrder(
     };
   });
   const itemsTotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const deliveryFee = getDeliveryFee(input.type, itemsTotal, cafe);
 
-  const [pricing] = await db
-    .select({ deliveryFee: cafes.deliveryFee, freeDeliveryFrom: cafes.freeDeliveryFrom })
-    .from(cafes)
-    .where(eq(cafes.id, cafeId));
-  const deliveryFee = getDeliveryFee(input.type, itemsTotal, pricing);
-  const totalAmount = itemsTotal + deliveryFee;
+  // Tranzaksiyadan oldin ham tekshiriladi: mijozga aniq sabab aytish va narxni solishtirish uchun
+  const promoRequest = input.promoCode
+    ? { cafeId, code: input.promoCode, telegramId: customer.telegramId, timeZone: input.timeZone }
+    : null;
+  let discountAmount = 0;
+  let promoCode: string | null = null;
+  if (promoRequest) {
+    const promo = await checkPromo(db, promoRequest);
+    if (!promo.ok) return { status: "promo_rejected", reason: promo.reason };
+    discountAmount = getPromoDiscount(promo.terms, itemsTotal);
+    if (discountAmount === 0) return { status: "promo_rejected", reason: "min_order" };
+    promoCode = promo.code;
+  }
+
+  const totalAmount = itemsTotal - discountAmount + deliveryFee;
   if (totalAmount !== input.expectedTotal) return { status: "price_changed" };
 
   try {
     const orderId = await db.transaction(async (tx) => {
+      // Qator qulflanadi: oxirgi foydalanishni ikki mijoz bir vaqtda ololmaydi
+      let promoCodeId: number | null = null;
+      if (promoRequest) {
+        const promo = await checkPromo(tx, { ...promoRequest, forUpdate: true });
+        if (!promo.ok) throw new PromoRejectedInTransaction(promo.reason);
+        promoCodeId = promo.id;
+      }
+
       const names = {
         firstName: customer.firstName,
         lastName: customer.lastName,
@@ -264,6 +320,9 @@ export async function placeOrder(
           comment: input.comment,
           cutleryCount: input.cutleryCount,
           deliveryFee,
+          promoCodeId,
+          promoCode,
+          discountAmount,
           totalAmount,
         })
         .returning({ id: orders.id });
@@ -279,12 +338,13 @@ export async function placeOrder(
         })),
       );
 
-      const staffMessageId = await notify({ orderId: id, deliveryFee, totalAmount, lines });
+      const staffMessageId = await notify({ orderId: id, deliveryFee, promoCode, discountAmount, totalAmount, lines });
       await tx.update(orders).set({ staffMessageId }).where(eq(orders.id, id));
       return id;
     });
     return { status: "created", orderId, totalAmount };
   } catch (error) {
+    if (error instanceof PromoRejectedInTransaction) return { status: "promo_rejected", reason: error.reason };
     // Bir xil so'rov bir vaqtda ikki marta keldi: birinchisi saqlandi, uni qaytaramiz
     if (isRequestConflict(error)) {
       const order = await findOrderByRequest(cafeId, requestId);
@@ -317,6 +377,8 @@ export type StaffOrder = {
   type: OrderType;
   status: OrderStatus;
   customerTelegramId: number;
+  cafePhone: string | null;
+  cafeAddress: string | null;
 };
 
 /** Buyurtmani faqat shu kafening xodimlar guruhi ko'ra oladi; boshqa holatda null. */
@@ -331,6 +393,8 @@ export async function getStaffOrder(input: {
       type: orders.type,
       status: orders.status,
       customerTelegramId: customers.telegramId,
+      cafePhone: cafes.phone,
+      cafeAddress: cafes.address,
     })
     .from(orders)
     .innerJoin(cafes, eq(cafes.id, orders.cafeId))
@@ -396,6 +460,8 @@ export type CustomerOrder = {
   type: OrderType;
   paymentMethod: PaymentMethod;
   deliveryFee: number;
+  promoCode: string | null;
+  discountAmount: number;
   totalAmount: number;
   address: string | null;
   hasLocation: boolean;
@@ -416,6 +482,8 @@ export async function getCustomerOrders(cafeId: number, telegramId: number): Pro
       type: orders.type,
       paymentMethod: orders.paymentMethod,
       deliveryFee: orders.deliveryFee,
+      promoCode: orders.promoCode,
+      discountAmount: orders.discountAmount,
       totalAmount: orders.totalAmount,
       address: orders.address,
       latitude: orders.latitude,

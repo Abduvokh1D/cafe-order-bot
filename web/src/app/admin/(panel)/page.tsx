@@ -1,21 +1,16 @@
-import { getOrdersForDay, type AdminOrder, type OrderStatus } from "@cafe/db";
+import { getCafeAccepting, getOrdersForDay, type AdminOrder } from "@cafe/db";
+import { formatMinutes, getCafeAvailability, minutesInTimeZone, type CafeHours } from "@cafe/db/hours";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { setAcceptingAction } from "@/app/admin/actions";
+import { AdminForm } from "@/components/admin/admin-form";
 import { requireAdmin } from "@/lib/admin-session";
 import { formatDay, formatTime, isValidDay, shiftDay, TIME_ZONE, today } from "@/lib/day";
 import { formatPrice } from "@/lib/format";
+import { STATUS_LABELS } from "@/lib/order-labels";
 import { PAYMENT_LABELS } from "@/lib/payment";
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  new: "🆕 Yangi",
-  accepted: "✅ Qabul qilindi",
-  preparing: "👨‍🍳 Tayyorlanmoqda",
-  ready: "🛍 Tayyor",
-  on_the_way: "🚗 Yo'lda",
-  delivered: "🎉 Yakunlandi",
-  cancelled: "❌ Bekor qilindi",
-};
+import { hasPermission } from "@/lib/permissions";
 
 const TOP_PRODUCTS = 5;
 
@@ -34,10 +29,12 @@ async function OrdersForDay({ searchParams }: { searchParams: Promise<{ date?: s
   await connection();
   const now = today();
   const day = isValidDay(date) && date <= now ? date : now;
-  const orders = await getOrdersForDay(admin.cafeId, day, TIME_ZONE);
+  const [orders, hours] = await Promise.all([getOrdersForDay(admin.cafeId, day, TIME_ZONE), getCafeAccepting(admin.cafeId)]);
 
   return (
     <>
+      <AcceptingCard hours={hours} />
+
       <nav aria-label="Kun tanlash" className="flex items-center justify-between gap-3">
         <Link
           href={`/admin?date=${shiftDay(day, -1)}`}
@@ -63,7 +60,7 @@ async function OrdersForDay({ searchParams }: { searchParams: Promise<{ date?: s
         )}
       </nav>
 
-      <DayReport orders={orders} />
+      {hasPermission(admin.role, "reports") && <DayReport orders={orders} />}
 
       {orders.length === 0 ? (
         <p className="rounded-2xl bg-section p-8 text-center text-hint">Bu kunda buyurtma yo&apos;q.</p>
@@ -77,6 +74,35 @@ async function OrdersForDay({ searchParams }: { searchParams: Promise<{ date?: s
         </ul>
       )}
     </>
+  );
+}
+
+function AcceptingCard({ hours }: { hours: CafeHours }) {
+  const availability = getCafeAvailability(hours, minutesInTimeZone(new Date(), TIME_ZONE));
+  const hasHours = hours.opensAtMinutes !== null && hours.closesAtMinutes !== null;
+  const schedule = hasHours ? `Ish vaqti: ${formatMinutes(hours.opensAtMinutes!)}–${formatMinutes(hours.closesAtMinutes!)}` : "Ish vaqti kiritilmagan";
+  return (
+    <section aria-label="Buyurtma qabul qilish" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-section p-4">
+      <div className="min-w-0">
+        <p className="font-semibold">{availability.isOpen ? "🟢 Buyurtma qabul qilinyapti" : "🔴 Buyurtma qabul qilinmayapti"}</p>
+        <p className="text-sm text-hint">
+          {!availability.isOpen && availability.reason === "paused" ? "Qo'lda to'xtatilgan" : schedule}
+        </p>
+      </div>
+      <AdminForm
+        action={setAcceptingAction}
+        confirmMessage={hours.isAcceptingOrders ? "Yangi buyurtmalar to'xtatilsinmi?" : undefined}
+        className="flex shrink-0 flex-col items-end gap-1"
+      >
+        <input type="hidden" name="isAccepting" value={String(!hours.isAcceptingOrders)} />
+        <button
+          type="submit"
+          className={`rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50 ${hours.isAcceptingOrders ? "bg-secondary text-destructive" : "bg-button text-button-text"}`}
+        >
+          {hours.isAcceptingOrders ? "To'xtatish" : "Qayta yoqish"}
+        </button>
+      </AdminForm>
+    </section>
   );
 }
 
@@ -114,7 +140,7 @@ function DayReport({ orders }: { orders: AdminOrder[] }) {
           </ol>
         </div>
       )}
-      <p className="text-xs text-hint">Summa va o&apos;rtacha chekka yetkazish narxi kiradi, bekor qilingan buyurtmalar kirmaydi.</p>
+      <p className="text-xs text-hint">Summa va o&apos;rtacha chekka yetkazish narxi kiradi, chegirma va bekor qilingan buyurtmalar kirmaydi.</p>
     </section>
   );
 }
@@ -168,6 +194,12 @@ function OrderCard({ order }: { order: AdminOrder }) {
           </li>
         ))}
       </ul>
+      {order.discountAmount > 0 && (
+        <div className="flex justify-between gap-3 border-t border-secondary pt-2">
+          <span>Chegirma ({order.promoCode})</span>
+          <span className="shrink-0 text-hint">−{formatPrice(order.discountAmount)}</span>
+        </div>
+      )}
       {order.deliveryFee > 0 && (
         <div className="flex justify-between gap-3 border-t border-secondary pt-2">
           <span>Yetkazib berish</span>

@@ -46,12 +46,16 @@ function getEta(order: LoadedOrder, minMinutes: number | null, maxMinutes: numbe
 
 export function OrderTracker({
   order,
+  cafePhone,
+  cafeAddress,
   checkedAt,
   deliveryMinMinutes,
   deliveryMaxMinutes,
   onClose,
 }: {
   order: LoadedOrder;
+  cafePhone: string | null;
+  cafeAddress: string | null;
   checkedAt: number;
   deliveryMinMinutes: number | null;
   deliveryMaxMinutes: number | null;
@@ -110,6 +114,14 @@ export function OrderTracker({
               Taxminiy vaqt: <span className="font-bold tabular-nums">{eta}</span>
             </p>
           )}
+          {isActive && cafePhone && (
+            <a
+              href={`tel:${cafePhone.replace(/[^\d+]/g, "")}`}
+              className="self-start rounded-full bg-button-text px-4 py-2 text-sm font-medium text-button"
+            >
+              📞 Kafega qo&apos;ng&apos;iroq
+            </a>
+          )}
           {!isCancelled && (
             <ProgressBar
               order={order}
@@ -159,6 +171,12 @@ export function OrderTracker({
               </li>
             ))}
           </ul>
+          {order.discountAmount > 0 && (
+            <div className="flex justify-between gap-3 text-sm">
+              <span>Chegirma ({order.promoCode})</span>
+              <span className="shrink-0 tabular-nums text-hint">−{formatPrice(order.discountAmount)}</span>
+            </div>
+          )}
           {order.deliveryFee > 0 && (
             <div className="flex justify-between gap-3 text-sm">
               <span>Yetkazib berish</span>
@@ -177,6 +195,7 @@ export function OrderTracker({
 
         <section aria-label="Tafsilotlar" className="flex flex-col gap-2 rounded-3xl bg-background p-5 text-sm">
           <p className="font-medium">{order.type === "delivery" ? "🚗 Yetkazib berish" : "🏃 Olib ketish"}</p>
+          {order.type === "pickup" && isActive && cafeAddress && <p className="text-hint">📍 {cafeAddress}</p>}
           {order.address && <p className="text-hint">{order.address}</p>}
           {order.hasLocation && <p className="text-hint">📍 Joy xaritada belgilangan</p>}
           {order.cutleryCount > 0 && <p className="text-hint">🍴 Vilka-qoshiq: {order.cutleryCount} ta</p>}

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import { getDb } from "./index.ts";
 import type { MenuProduct, OrderStatus, OrderType, PaymentMethod } from "./queries.ts";
 import { banners, cafes, categories, customers, orderItems, orders, products } from "./schema.ts";
@@ -165,6 +165,8 @@ export type AdminOrder = {
   comment: string | null;
   cutleryCount: number;
   deliveryFee: number;
+  promoCode: string | null;
+  discountAmount: number;
   totalAmount: number;
   createdAt: Date;
   customerName: string;
@@ -192,6 +194,8 @@ export async function getOrdersForDay(
       comment: orders.comment,
       cutleryCount: orders.cutleryCount,
       deliveryFee: orders.deliveryFee,
+      promoCode: orders.promoCode,
+      discountAmount: orders.discountAmount,
       totalAmount: orders.totalAmount,
       createdAt: orders.createdAt,
       firstName: customers.firstName,
@@ -247,6 +251,11 @@ export async function getAdminSettings(cafeId: number) {
       deliveryMaxMinutes: cafes.deliveryMaxMinutes,
       deliveryFee: cafes.deliveryFee,
       freeDeliveryFrom: cafes.freeDeliveryFrom,
+      phone: cafes.phone,
+      address: cafes.address,
+      isAcceptingOrders: cafes.isAcceptingOrders,
+      opensAtMinutes: cafes.opensAtMinutes,
+      closesAtMinutes: cafes.closesAtMinutes,
     })
     .from(cafes)
     .where(eq(cafes.id, cafeId));
@@ -287,4 +296,190 @@ export async function deleteBanner(cafeId: number, bannerId: number) {
     .where(and(eq(banners.cafeId, cafeId), eq(banners.id, bannerId)))
     .returning({ imageUrl: banners.imageUrl });
   return deleted?.imageUrl ?? null;
+}
+
+export async function setCafeContacts(cafeId: number, phone: string | null, address: string | null) {
+  await getDb().update(cafes).set({ phone, address }).where(eq(cafes.id, cafeId));
+}
+
+export async function setCafeHours(cafeId: number, opensAtMinutes: number | null, closesAtMinutes: number | null) {
+  await getDb().update(cafes).set({ opensAtMinutes, closesAtMinutes }).where(eq(cafes.id, cafeId));
+}
+
+export async function setCafeAccepting(cafeId: number, isAcceptingOrders: boolean) {
+  await getDb().update(cafes).set({ isAcceptingOrders }).where(eq(cafes.id, cafeId));
+}
+
+export async function getCafeAccepting(cafeId: number) {
+  const [cafe] = await getDb()
+    .select({
+      isAcceptingOrders: cafes.isAcceptingOrders,
+      opensAtMinutes: cafes.opensAtMinutes,
+      closesAtMinutes: cafes.closesAtMinutes,
+    })
+    .from(cafes)
+    .where(eq(cafes.id, cafeId));
+  return cafe;
+}
+
+export type MoveDirection = "up" | "down";
+
+// Ro'yxat qayta raqamlanadi: eski yozuvlarda sortOrder bir xil bo'lishi mumkin
+function swapped(ids: number[], id: number, direction: MoveDirection) {
+  const index = ids.indexOf(id);
+  const target = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || target < 0 || target >= ids.length) return null;
+  const next = [...ids];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+export async function moveCategory(cafeId: number, categoryId: number, direction: MoveDirection) {
+  await getDb().transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(and(eq(categories.cafeId, cafeId), eq(categories.isArchived, false)))
+      .orderBy(asc(categories.sortOrder), asc(categories.id));
+    const next = swapped(rows.map((row) => row.id), categoryId, direction);
+    if (!next) return;
+    for (const [sortOrder, id] of next.entries()) {
+      await tx.update(categories).set({ sortOrder }).where(and(eq(categories.cafeId, cafeId), eq(categories.id, id)));
+    }
+  });
+}
+
+export async function moveProduct(cafeId: number, productId: number, direction: MoveDirection) {
+  await getDb().transaction(async (tx) => {
+    const [product] = await tx
+      .select({ categoryId: products.categoryId })
+      .from(products)
+      .where(and(eq(products.cafeId, cafeId), eq(products.id, productId)));
+    if (!product) return;
+    const rows = await tx
+      .select({ id: products.id })
+      .from(products)
+      .where(
+        and(
+          eq(products.cafeId, cafeId),
+          eq(products.categoryId, product.categoryId),
+          eq(products.isArchived, false),
+        ),
+      )
+      .orderBy(asc(products.sortOrder), asc(products.id));
+    const next = swapped(rows.map((row) => row.id), productId, direction);
+    if (!next) return;
+    for (const [sortOrder, id] of next.entries()) {
+      await tx.update(products).set({ sortOrder }).where(and(eq(products.cafeId, cafeId), eq(products.id, id)));
+    }
+  });
+}
+
+export type AdminCustomer = {
+  id: number;
+  name: string;
+  username: string | null;
+  phone: string | null;
+  orders: number;
+  spent: number;
+  lastOrderAt: Date | null;
+};
+
+const CUSTOMERS_PAGE_SIZE = 50;
+
+function customerName(firstName: string | null, lastName: string | null) {
+  return [firstName, lastName].filter(Boolean).join(" ") || "Mijoz";
+}
+
+function customerRows(where: SQL | undefined) {
+  return getDb()
+    .select({
+      id: customers.id,
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      username: customers.username,
+      phone: customers.phone,
+      orders: sql<number>`count(${orders.id})::int`,
+      spent: sql<number>`coalesce(sum(${orders.totalAmount}), 0)::int`,
+      lastOrderAt: sql<string | null>`max(${orders.createdAt})`,
+    })
+    .from(customers)
+    .leftJoin(
+      orders,
+      and(eq(orders.cafeId, customers.cafeId), eq(orders.customerId, customers.id), ne(orders.status, "cancelled")),
+    )
+    .where(where)
+    .groupBy(customers.id);
+}
+
+type CustomerRow = Awaited<ReturnType<typeof customerRows>>[number];
+
+function toAdminCustomer({ firstName, lastName, lastOrderAt, ...row }: CustomerRow): AdminCustomer {
+  return {
+    ...row,
+    name: customerName(firstName, lastName),
+    lastOrderAt: lastOrderAt ? new Date(lastOrderAt) : null,
+  };
+}
+
+/** Xarid summasiga bekor qilingan buyurtmalar kirmaydi. */
+export async function listCustomers(
+  cafeId: number,
+  options: { query: string; sort: "recent" | "spent"; page: number },
+) {
+  const search = options.query.trim().replace(/[\\%_]/g, "\\$&");
+  const pattern = `%${search}%`;
+  const rows = await customerRows(
+    and(
+      eq(customers.cafeId, cafeId),
+      search
+        ? or(
+            ilike(customers.firstName, pattern),
+            ilike(customers.lastName, pattern),
+            ilike(customers.username, pattern),
+            ilike(customers.phone, pattern),
+          )
+        : undefined,
+    ),
+  )
+    .orderBy(
+      options.sort === "spent" ? sql`coalesce(sum(${orders.totalAmount}), 0) desc` : sql`max(${orders.createdAt}) desc nulls last`,
+      desc(customers.id),
+    )
+    .limit(CUSTOMERS_PAGE_SIZE + 1)
+    .offset((options.page - 1) * CUSTOMERS_PAGE_SIZE);
+  return { customers: rows.slice(0, CUSTOMERS_PAGE_SIZE).map(toAdminCustomer), hasMore: rows.length > CUSTOMERS_PAGE_SIZE };
+}
+
+export async function getCustomerDetail(cafeId: number, customerId: number) {
+  const [row] = await customerRows(and(eq(customers.cafeId, cafeId), eq(customers.id, customerId)));
+  if (!row) return null;
+
+  const orderRows = await getDb()
+    .select({
+      id: orders.id,
+      status: orders.status,
+      type: orders.type,
+      totalAmount: orders.totalAmount,
+      createdAt: orders.createdAt,
+    })
+    .from(orders)
+    .where(and(eq(orders.cafeId, cafeId), eq(orders.customerId, customerId)))
+    .orderBy(desc(orders.id))
+    .limit(100);
+  const itemRows = orderRows.length
+    ? await getDb()
+        .select({ orderId: orderItems.orderId, productName: orderItems.productName, quantity: orderItems.quantity })
+        .from(orderItems)
+        .where(and(eq(orderItems.cafeId, cafeId), inArray(orderItems.orderId, orderRows.map((order) => order.id))))
+        .orderBy(asc(orderItems.id))
+    : [];
+
+  return {
+    customer: toAdminCustomer(row),
+    orders: orderRows.map((order) => ({
+      ...order,
+      items: itemRows.filter((item) => item.orderId === order.id),
+    })),
+  };
 }

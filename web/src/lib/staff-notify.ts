@@ -36,6 +36,7 @@ export function formatStaffMessage(input: StaffMessageInput) {
     ...(cutleryCount > 0 ? [`🍴 Vilka-qoshiq: ${cutleryCount} ta`] : []),
     ...(comment ? [`💬 Izoh: ${comment}`] : []),
     "",
+    ...(order.discountAmount > 0 ? [`Chegirma (${order.promoCode}): −${formatPrice(order.discountAmount)}`] : []),
     ...(order.deliveryFee > 0 ? [`Yetkazib berish: ${formatPrice(order.deliveryFee)}`] : []),
     `Jami: ${formatPrice(order.totalAmount)}`,
     `To'lov: ${PAYMENT_LABELS[paymentMethod]}`,

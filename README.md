@@ -49,7 +49,9 @@ npm workspaces: paketlar ildiz papkadan bitta `npm install` bilan o'rnatiladi.
 
 ## Admin panel
 
-Kafe egasi uchun: `/admin` (buyurtmalar va kunlik hisobot) va `/admin/menu` (menyuni tahrirlash).
+Kafe egasi uchun: `/admin` (buyurtmalar, kunlik hisobot, buyurtmani to'xtatish), `/admin/menu`, `/admin/stats`, `/admin/customers`, `/admin/promos`, `/admin/staff` va `/admin/settings`.
+
+Rollar: **Egasi** (hammasi), **Menejer** (xodimlardan boshqa hammasi), **Xodim** (buyurtmalar va "tugadi" belgisi). Ruxsatlar `web/src/lib/permissions.ts` da. Birinchi egani terminalda yarating, qolganlarini u paneldan qo'shadi.
 
 Yangi kafe yaratish:
 
