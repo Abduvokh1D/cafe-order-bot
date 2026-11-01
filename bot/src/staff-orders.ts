@@ -105,6 +105,33 @@ async function notifyCustomer(bot: Bot, order: StaffOrder) {
   }
 }
 
+function cancelAlertText(order: StaffOrder, previousStatus: OrderStatus, cancelledBy: string) {
+  const action =
+    order.type === "pickup"
+      ? "Tayyorlamang va mijozga bermang."
+      : previousStatus === "on_the_way"
+        ? "Kuryer: yetkazmang, kafega qayting."
+        : "Tayyorlamang va yetkazib bermang.";
+  return `❌ DIQQAT! Buyurtma №${order.id} bekor qilindi — ${cancelledBy}\n${action}`;
+}
+
+/**
+ * Xabarni tahrirlash guruhga bildirishnoma bermaydi: bekor qilish alohida xabar bilan aytiladi,
+ * aks holda kuryer yo'lda davom etadi. Xabar ketmasa, holat qaytarilmaydi: xodim ogohlantiriladi.
+ */
+async function alertStaffAboutCancel(ctx: Context, order: StaffOrder, previousStatus: OrderStatus) {
+  const messageId = ctx.callbackQuery?.message?.message_id;
+  try {
+    await ctx.reply(cancelAlertText(order, previousStatus, ctx.from?.first_name ?? "xodim"), {
+      reply_parameters: messageId ? { message_id: messageId, allow_sending_without_reply: true } : undefined,
+    });
+    return true;
+  } catch (error) {
+    console.error(`Buyurtma №${order.id} bekor qilingani guruhga yuborilmadi:`, error);
+    return false;
+  }
+}
+
 export function registerStaffHandlers(bot: Bot, cafeSlug: string) {
   bot.callbackQuery(
     /^order:(accepted|preparing|ready|on_the_way|delivered|cancelled):(\d+)$/,
@@ -129,17 +156,24 @@ export function registerStaffHandlers(bot: Bot, cafeSlug: string) {
 
       const { order, previousStatus } = outcome;
       const delivered = await notifyCustomer(bot, order);
+      const staffAlerted = order.status === "cancelled" ? await alertStaffAboutCancel(ctx, order, previousStatus) : true;
 
       await ctx.answerCallbackQuery(
-        delivered
+        delivered && staffAlerted
           ? { text: logLabel(order) }
-          : { text: "Holat o'zgardi, lekin mijozga xabar bormadi. Telefon qiling.", show_alert: true },
+          : {
+              text: delivered
+                ? "Bekor qilindi, lekin guruhga ogohlantirish ketmadi. Kuryerga telefon qiling."
+                : "Holat o'zgardi, lekin mijozga xabar bormadi. Telefon qiling.",
+              show_alert: true,
+            },
       );
 
       // Birinchi qaror tafsilotlardan bo'sh qator bilan ajratiladi, keyingilari tarix bo'lib qo'shiladi
       const original = ctx.callbackQuery.message?.text ?? `Buyurtma №${order.id}`;
       const separator = previousStatus === "new" ? "\n\n" : "\n";
-      const warning = delivered ? "" : " ⚠️ mijozga xabar bormadi";
+      const warning =
+        (delivered ? "" : " ⚠️ mijozga xabar bormadi") + (staffAlerted ? "" : " ⚠️ guruhga ogohlantirish ketmadi");
       const keyboard = orderKeyboard(order);
       await ctx.editMessageText(
         `${original}${separator}${logLabel(order)} — ${ctx.from.first_name}${warning}`,

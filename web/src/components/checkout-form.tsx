@@ -3,7 +3,7 @@
 import type { MenuProduct, OrderType, PaymentMethod } from "@cafe/db";
 import { getDeliveryFee, type DeliveryPricing } from "@cafe/db/pricing";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import type { OrderExtras } from "@/components/cart-screen";
 import { LocationPicker } from "@/components/location-picker";
 import { clearCart } from "@/lib/cart";
@@ -74,8 +74,16 @@ export function CheckoutForm({
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invalidField, setInvalidField] = useState<"phone" | "address" | null>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLDivElement>(null);
   const deliveryFee = getDeliveryFee(type, itemsTotal, pricing);
   const total = itemsTotal + deliveryFee;
+
+  function clearError() {
+    setError(null);
+    setInvalidField(null);
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -83,16 +91,21 @@ export function CheckoutForm({
 
     if (!isValidPhone(phone)) {
       setError("Telefon raqamini to'g'ri kiriting, masalan: +998 90 123 45 67");
+      setInvalidField("phone");
+      phoneRef.current?.focus();
       return;
     }
     const isDelivery = type === "delivery";
     if (isDelivery && !address.trim() && !location) {
       setError("Manzilni yozing yoki xaritadan belgilang.");
+      setInvalidField("address");
+      // Klaviatura ochilmaydi: mijoz xaritani tanlashi ham mumkin
+      addressRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
     setIsSubmitting(true);
-    setError(null);
+    clearError();
     try {
       const response = await fetch("/api/orders", {
         method: "POST",
@@ -142,6 +155,7 @@ export function CheckoutForm({
   }
 
   const inputClass = "w-full rounded-xl bg-secondary px-4 py-3 outline-none placeholder:text-hint";
+  const invalidClass = "ring-2 ring-destructive";
 
   return (
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col bg-background">
@@ -158,7 +172,10 @@ export function CheckoutForm({
               type="button"
               role="radio"
               aria-checked={type === value}
-              onClick={() => setType(value)}
+              onClick={() => {
+                setType(value);
+                clearError();
+              }}
               className={`rounded-lg py-2 text-sm font-medium ${type === value ? "bg-button text-button-text" : ""}`}
             >
               {label}
@@ -172,26 +189,39 @@ export function CheckoutForm({
             type="tel"
             inputMode="tel"
             autoComplete="tel"
+            ref={phoneRef}
             value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            className={`${inputClass} text-base font-normal`}
+            onChange={(event) => {
+              setPhone(event.target.value);
+              clearError();
+            }}
+            aria-invalid={invalidField === "phone"}
+            className={`${inputClass} text-base font-normal ${invalidField === "phone" ? invalidClass : ""}`}
           />
         </label>
 
         {type === "delivery" && (
-          <div className="flex flex-col gap-2">
+          <div ref={addressRef} className="flex flex-col gap-2">
             <label className="flex flex-col gap-1 text-sm font-medium">
               {location ? "Qo'shimcha ma'lumot (ixtiyoriy)" : "Manzil"}
               <textarea
                 rows={2}
                 maxLength={500}
                 value={address}
-                onChange={(event) => setAddress(event.target.value)}
+                onChange={(event) => {
+                  setAddress(event.target.value);
+                  clearError();
+                }}
+                aria-invalid={invalidField === "address"}
                 placeholder={location ? "Xonadon, qavat, kirish, mo'ljal" : "Ko'cha, uy, xonadon, mo'ljal"}
-                className={`${inputClass} resize-none text-base font-normal`}
+                className={`${inputClass} resize-none text-base font-normal ${invalidField === "address" ? invalidClass : ""}`}
               />
             </label>
-            <button type="button" onClick={onMapOpen} className="rounded-xl bg-secondary py-3 text-sm font-medium">
+            <button
+              type="button"
+              onClick={onMapOpen}
+              className={`rounded-xl bg-secondary py-3 text-sm font-medium ${invalidField === "address" ? invalidClass : ""}`}
+            >
               {location ? "📍 Joy belgilandi (o'zgartirish)" : "🗺 Xaritadan belgilash"}
             </button>
           </div>
@@ -237,12 +267,6 @@ export function CheckoutForm({
             ))}
           </ul>
         </section>
-
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
       </div>
 
       <div className="flex flex-col gap-3 border-t border-secondary p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -262,6 +286,12 @@ export function CheckoutForm({
           <span>Jami</span>
           <span>{formatPrice(total)}</span>
         </div>
+        {/* Tugma yonida: forma uzun bo'lsa, ichidagi xabar ekrandan tashqarida qolib ketadi */}
+        {error && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={isSubmitting || lines.length === 0}
@@ -277,7 +307,7 @@ export function CheckoutForm({
           onBack={onMapClose}
           onConfirm={(picked) => {
             setLocation(picked);
-            setError(null);
+            clearError();
             onMapClose();
           }}
         />
